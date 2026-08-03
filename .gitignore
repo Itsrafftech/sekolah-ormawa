@@ -1,0 +1,40 @@
+# dependencies
+/node_modules/
+
+# Next.js build output
+/.next/
+/out/
+
+# generated clients and reports
+/src/generated/
+/coverage/
+/test-results/
+/playwright-report/
+
+# local environment and secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+/secrets/
+/.dev-secrets/
+*.pem
+*.key
+
+# local databases, uploads, and runtime data
+*.db
+*.db-journal
+/uploads/
+/storage/
+/tmp/
+
+# logs and OS/editor files
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
