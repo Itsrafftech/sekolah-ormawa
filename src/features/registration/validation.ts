@@ -69,7 +69,6 @@ const payloadSchema = z.object({
     studyProgramId: z.uuid(),
     phone: z.string().trim().min(8).max(32),
     email: z.email().max(254),
-    gpa: z.number().min(0).max(4),
     domicile: z.string().trim().min(2).max(160),
   }),
   choices: z.tuple([
@@ -88,8 +87,12 @@ const payloadSchema = z.object({
   }),
   portfolio: z.array(portfolioSchema),
   consent: z.object({
-    truthful: z.literal(true),
-    processing: z.literal(true),
+    // Custom messages: without these, a Zod structural failure here (e.g.
+    // an unchecked box reaching submit()) surfaces Zod's raw default
+    // "Invalid input: expected true" straight to the end user - matches
+    // the wording validateStep(4) already uses client-side.
+    truthful: z.literal(true, "Pernyataan kebenaran data wajib disetujui."),
+    processing: z.literal(true, "Persetujuan pemrosesan data wajib diberikan."),
     version: z.string().min(1).max(100),
   }),
 });

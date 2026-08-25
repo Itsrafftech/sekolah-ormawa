@@ -32,8 +32,39 @@ const serverEnvironmentSchema = z.object({
   PORTFOLIO_MAX_FILE_BYTES: numberFromEnvironment(5242880),
   PORTFOLIO_URL_MAX_LENGTH: numberFromEnvironment(2048),
   STORAGE_PRIVATE_ROOT: z.string().min(1).default("private"),
+  STORAGE_SIGNED_URL_TTL_SECONDS: numberFromEnvironment(300),
+  // Phase 9: MinIO (self-hosted, S3-compatible) is the production private
+  // storage provider (replaces the earlier Supabase Storage plan - see
+  // ADR-035). All optional here so development/test (which use
+  // DevelopmentPrivateStorage, local disk) never need them; enforced
+  // present in the superRefine below when NODE_ENV=production.
+  STORAGE_BUCKET_CANDIDATES: z.string().min(1).default("sekolah-candidates-private"),
+  MINIO_ENDPOINT: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.url().optional(),
+  ),
+  MINIO_REGION: z.string().min(1).default("us-east-1"),
+  MINIO_ACCESS_KEY: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.string().min(1).optional(),
+  ),
+  MINIO_SECRET_KEY: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.string().min(1).optional(),
+  ),
   EMAIL_SINK_ROOT: z.string().min(1).default("email-sink"),
   EMAIL_OUTBOX_MAX_ATTEMPTS: numberFromEnvironment(5),
+  // Phase 9: Resend is the production email provider (replaces the
+  // dev-only local sink). Optional here for the same reason as the MinIO
+  // vars above; enforced present in production in the superRefine below.
+  RESEND_API_KEY: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.string().min(1).optional(),
+  ),
+  RESEND_FROM_EMAIL: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.email().optional(),
+  ),
   CRON_SECRET: z.preprocess(
     (value) => value === "" ? undefined : value,
     z.string().min(32).optional(),
@@ -50,6 +81,26 @@ const serverEnvironmentSchema = z.object({
       message: "AUTH_SECRET production harus minimal 48 karakter saat submission aktif.",
       path: ["AUTH_SECRET"],
     });
+  }
+  if (environment.NODE_ENV === "production") {
+    for (const key of ["MINIO_ENDPOINT", "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY"] as const) {
+      if (!environment[key]) {
+        context.addIssue({
+          code: "custom",
+          message: `${key} wajib di production (adapter storage MinIO).`,
+          path: [key],
+        });
+      }
+    }
+    for (const key of ["RESEND_API_KEY", "RESEND_FROM_EMAIL"] as const) {
+      if (!environment[key]) {
+        context.addIssue({
+          code: "custom",
+          message: `${key} wajib di production (adapter email Resend).`,
+          path: [key],
+        });
+      }
+    }
   }
 });
 

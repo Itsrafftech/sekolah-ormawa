@@ -147,7 +147,6 @@ async function validPayload(input: {
       studyProgramId,
       phone: "081200000000",
       email: `${input.suffix}@example.test`,
-      gpa: 3.5,
       domicile: "Kota Sintetis",
     },
     choices: [

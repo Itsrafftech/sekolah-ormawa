@@ -1,0 +1,18 @@
+# Phase 9: keep the Docker build context small and never send local
+# secrets/dev artifacts into an image layer.
+node_modules
+.next
+.git
+.claude
+storage
+test-results
+playwright-report
+docs
+tests
+*.md
+.env
+.env.*
+!.env.example
+npm-debug.log*
+.DS_Store
+Thumbs.db

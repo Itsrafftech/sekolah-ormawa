@@ -1,0 +1,1 @@
+# Kept so Next.js's public/ directory always exists (Docker COPY requires it - see Dockerfile). No static assets are used today; content is inline/SVG in src/.

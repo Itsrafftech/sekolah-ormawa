@@ -10,6 +10,11 @@ const globalForPrisma = globalThis as unknown as {
 function createPrismaClient() {
   const adapter = new PrismaPg({
     connectionString: getServerEnvironment().DATABASE_URL,
+    // node-postgres defaults to a max pool of 10, which starves concurrent
+    // interactive transactions (e.g. Phase 6 candidate lock/unlock under
+    // contention) and surfaces as spurious P2028 "expired transaction"
+    // errors while callers queue for a free connection.
+    max: 20,
   });
 
   return new PrismaClient({ adapter });

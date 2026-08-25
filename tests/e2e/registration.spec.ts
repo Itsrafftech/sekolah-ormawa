@@ -13,7 +13,6 @@ async function fillIdentity(page: Page, suffix: string) {
   await page.getByLabel("Program studi").selectOption({ label: "Program Studi Sintetis E2E" });
   await page.getByLabel("Nomor WhatsApp").fill("081200000000");
   await page.getByLabel("Email aktif").fill(`${suffix}@example.test`);
-  await page.getByLabel("IPK terakhir").fill("3.50");
   await page.getByLabel("Domisili").fill("Kota Sintetis");
 }
 
@@ -65,7 +64,7 @@ test("draft dari schema lama atau periode berbeda ditolak dengan aman", async ({
   await expect.poll(() => page.evaluate(({ periodId }) => {
     const raw = window.localStorage.getItem(`sekolah-ormawa:registration-draft:${periodId}`);
     return raw ? (JSON.parse(raw) as { schemaVersion?: number }).schemaVersion : null;
-  }, { periodId: E2E_PERIOD_ID })).toBe(3);
+  }, { periodId: E2E_PERIOD_ID })).toBe(4);
 });
 
 test("happy path non-Medbrand menyimpan kandidat dan menampilkan bukti", async ({ page }) => {

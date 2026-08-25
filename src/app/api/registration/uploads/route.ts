@@ -8,13 +8,53 @@ import {
 } from "@/server/registration/owner";
 import { UploadValidationError } from "@/features/registration/file-validation";
 import { createPrivateUpload } from "@/server/registration/uploads";
+import { AuthServiceError } from "@/server/auth/errors";
+import { getServerEnvironment } from "@/lib/env";
+import { consumeAuthRateLimit } from "@/server/auth/rate-limit";
+import { assertValidCsrf, clientIpHash } from "@/server/auth/security";
+
+// Overhead budget for multipart boundaries/field headers around the file
+// itself, so legitimate uploads at the configured max size are not rejected.
+const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
 
 const uploadKinds = new Set<UploadKind>(["CV", "PHOTO", "STUDENT_CARD", "PORTFOLIO"]);
 
 export async function POST(request: NextRequest) {
+  try {
+    assertValidCsrf(request);
+  } catch (error) {
+    const message = error instanceof AuthServiceError ? error.message : "Request state-changing tidak sah.";
+    return NextResponse.json({ error: message }, { status: 403 });
+  }
+
+  try {
+    await consumeAuthRateLimit({
+      scope: "REGISTRATION_UPLOAD",
+      identity: "public",
+      ipHash: clientIpHash(request.headers),
+      maximum: 30,
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "Terlalu banyak percobaan unggah. Tunggu sebelum mencoba kembali." },
+      { status: 429 },
+    );
+  }
+
   const availability = await getRegistrationAvailability();
   if (availability.state !== "OPEN") {
     return NextResponse.json({ error: availability.detail }, { status: 409 });
+  }
+
+  // Reject oversized requests from the Content-Length header before ever
+  // buffering the body: file-validation.ts only checks size after
+  // request.formData() has already read the whole payload into memory,
+  // which by itself does not protect against a large-body memory
+  // exhaustion attempt.
+  const declaredLength = Number(request.headers.get("content-length") ?? "");
+  const maxAllowedBytes = getServerEnvironment().PORTFOLIO_MAX_FILE_BYTES + MULTIPART_OVERHEAD_BYTES;
+  if (Number.isFinite(declaredLength) && declaredLength > maxAllowedBytes) {
+    return NextResponse.json({ error: "Ukuran file melebihi batas yang diizinkan." }, { status: 413 });
   }
 
   const formData = await request.formData();

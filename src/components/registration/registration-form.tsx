@@ -67,7 +67,6 @@ function emptyPayload(config: RegistrationFormConfig): RegistrationPayload {
       studyProgramId: "",
       phone: "",
       email: "",
-      gpa: 0,
       domicile: "",
     },
     choices: [
@@ -212,7 +211,6 @@ export function RegistrationForm({ config }: { config: RegistrationFormConfig })
       if (!payload.identity.studyProgramId) errors["identity.studyProgramId"] = "Pilih program studi.";
       if (payload.identity.phone.trim().length < 8) errors["identity.phone"] = "Nomor WhatsApp belum valid.";
       if (!/^\S+@\S+\.\S+$/u.test(payload.identity.email)) errors["identity.email"] = "Email aktif belum valid.";
-      if (payload.identity.gpa < 0 || payload.identity.gpa > 4) errors["identity.gpa"] = "IPK harus 0,00-4,00.";
       if (!payload.identity.domicile.trim()) errors["identity.domicile"] = "Domisili wajib diisi.";
     }
     if (targetStep === 1) {
@@ -270,6 +268,12 @@ export function RegistrationForm({ config }: { config: RegistrationFormConfig })
     }
     setSubmitting(true);
     setSubmitError(null);
+    // Clear stale errors from a previous failed attempt (e.g. an earlier
+    // validation failure) so a retry's error summary only ever reflects
+    // this attempt's actual outcome - otherwise a transient network
+    // failure here would surface alongside leftover messages from a
+    // completely different, already-fixed problem.
+    setFieldErrors({});
     const key = idempotencyKey ?? crypto.randomUUID().replaceAll("-", "");
     setIdempotencyKey(key);
     try {
@@ -452,9 +456,6 @@ function IdentityStep({ config, errors, payload, mutate }: StepProps) {
         <Field id="identity.email" label="Email aktif" error={errors["identity.email"]}>
           <input id={`${fieldId("identity.email")}-control`} value={payload.identity.email} onChange={(e) => update("email", e.target.value)} type="email" autoComplete="email" />
         </Field>
-        <Field id="identity.gpa" label="IPK terakhir" error={errors["identity.gpa"]} hint="Rentang 0,00-4,00.">
-          <input id={`${fieldId("identity.gpa")}-control`} value={payload.identity.gpa || ""} onChange={(e) => update("gpa", Number(e.target.value))} type="number" min="0" max="4" step="0.01" inputMode="decimal" />
-        </Field>
         <Field id="identity.domicile" label="Domisili" error={errors["identity.domicile"]}>
           <input id={`${fieldId("identity.domicile")}-control`} value={payload.identity.domicile} onChange={(e) => update("domicile", e.target.value)} autoComplete="address-level2" />
         </Field>
@@ -618,7 +619,7 @@ function ReviewStep({ config, errors, payload, requiresPortfolio, mutate }: Step
   return (
     <StepFrame number="05" eyebrow="Periksa sebelum commit" title="Review & persetujuan">
       <div className="review-sheet">
-        <ReviewSection title="Identitas"><dl><ReviewItem label="Nama" value={payload.identity.name} /><ReviewItem label="NIM" value={payload.identity.nim} /><ReviewItem label="Angkatan / tahun masuk" value={`${payload.identity.cohortCode} / ${payload.identity.entryYear}`} /><ReviewItem label="Prodi" value={program} /><ReviewItem label="Kelas" value={payload.identity.className} /><ReviewItem label="WhatsApp" value={payload.identity.phone} /><ReviewItem label="Email" value={payload.identity.email} /><ReviewItem label="IPK" value={payload.identity.gpa.toFixed(2)} /><ReviewItem label="Domisili" value={payload.identity.domicile} /></dl></ReviewSection>
+        <ReviewSection title="Identitas"><dl><ReviewItem label="Nama" value={payload.identity.name} /><ReviewItem label="NIM" value={payload.identity.nim} /><ReviewItem label="Angkatan / tahun masuk" value={`${payload.identity.cohortCode} / ${payload.identity.entryYear}`} /><ReviewItem label="Prodi" value={program} /><ReviewItem label="Kelas" value={payload.identity.className} /><ReviewItem label="WhatsApp" value={payload.identity.phone} /><ReviewItem label="Email" value={payload.identity.email} /><ReviewItem label="Domisili" value={payload.identity.domicile} /></dl></ReviewSection>
         <ReviewSection title="Pilihan Birdep">{payload.choices.map((choice, index) => <article key={index}><strong>Pilihan {index + 1} · {department(choice.departmentId)}</strong><p>{choice.motivation}</p></article>)}</ReviewSection>
         <ReviewSection title="Dokumen"><ul><li>CV · {payload.uploads.cv ? `${payload.uploads.cv.name} (${formatBytes(payload.uploads.cv.sizeBytes)})` : "Belum ada"}</li><li>Pas foto · {payload.uploads.photo ? `${payload.uploads.photo.name} (${formatBytes(payload.uploads.photo.sizeBytes)})` : "Belum ada"}</li><li>KTM · {payload.uploads.studentCard ? `${payload.uploads.studentCard.name} (${formatBytes(payload.uploads.studentCard.sizeBytes)})` : "Tidak dilampirkan"}</li></ul></ReviewSection>
         <ReviewSection title="Esai"><article><strong>Pengalaman organisasi</strong><p>{payload.essays.organizationExperience}</p></article><article><strong>Kontribusi untuk Pilihan 1</strong><p>{payload.essays.contribution}</p></article><article><strong>Keseimbangan akademik</strong><p>{payload.essays.academicBalance}</p></article></ReviewSection>

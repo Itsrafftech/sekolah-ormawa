@@ -8,8 +8,19 @@ import { getServerEnvironment } from "@/lib/env";
 import { sha256 } from "@/lib/security/crypto";
 import { AuthServiceError } from "@/server/auth/errors";
 
+export type RateLimitScope =
+  | "LOGIN"
+  | "RESET_REQUEST"
+  | "RESET_SUBMIT"
+  | "REGISTRATION_SUBMIT"
+  | "REGISTRATION_UPLOAD"
+  | "REGISTRATION_DOWNLOAD"
+  | "ADMIN_FILE_ACCESS"
+  | "ADMIN_EXPORT"
+  | "ADMIN_BROADCAST_SEND";
+
 export async function consumeAuthRateLimit(input: {
-  scope: "LOGIN" | "RESET_REQUEST" | "RESET_SUBMIT";
+  scope: RateLimitScope;
   identity: string;
   ipHash: string;
   maximum?: number;

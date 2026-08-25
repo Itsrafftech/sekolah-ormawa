@@ -92,6 +92,7 @@ enum AuditAction {
   PASSWORD_CHANGE
   PASSWORD_RESET_REQUEST
   AUTHORIZATION_DENIED
+  FILE_VIEW
 }
 
 enum PlacementStatus {
@@ -363,7 +364,11 @@ model Candidate {
   phone                  String
   email                  String
   normalizedEmail       String
-  gpa                    Decimal         @db.Decimal(3, 2)
+  // Nullable, not dropped: Angkatan 63 registers as new students before
+  // their first semester, so they have no GPA yet (product decision -
+  // see ADR-040). Kept nullable rather than removed to avoid a
+  // destructive migration against existing candidate rows.
+  gpa                    Decimal?        @db.Decimal(3, 2)
   domicile               String
   essayOrgExperience     String
   essayContribution     String

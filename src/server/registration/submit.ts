@@ -59,6 +59,21 @@ function isSerializationFailure(error: unknown): boolean {
   );
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Phase 8 P4 load test: a registration-deadline traffic spike (many
+// concurrent submitters) hits repeated Serializable conflicts on the shared
+// recruitmentPeriod.registrationSequence row. 3 immediate retries with no
+// backoff left most concurrent submitters colliding again on every retry;
+// jittered, increasing backoff spreads retries out so the conflict rate
+// drops with each attempt.
+const SUBMIT_MAX_ATTEMPTS = 6;
+function retryBackoffMs(attempt: number): number {
+  return 20 * 2 ** attempt + Math.floor(Math.random() * 20);
+}
+
 function assertPeriodStillOpen(
   period: {
     status: string;
@@ -143,7 +158,26 @@ export async function submitRegistration(input: {
   const now = input.now ?? new Date();
   const requestId = input.requestId ?? randomUUID();
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  // The registration-number counter is the one row every concurrent
+  // submitter writes regardless of which candidate/department they picked,
+  // so under Serializable isolation it was the dominant source of
+  // conflicts during a deadline traffic spike (Phase 8 P4 load test: 60
+  // concurrent submissions saw a ~72-85% conflict/retry-exhaustion rate).
+  // A single-row UPDATE...increment is already atomic and race-free under
+  // Postgres's default read-committed locking without Serializable, so it
+  // is issued once here, outside the retryable transaction below, leaving
+  // that transaction's remaining reads/writes (all scoped to this specific
+  // candidate/upload/idempotency-key) to keep their Serializable guarantee.
+  // A retried/replayed Idempotency-Key still burns a sequence number even
+  // when the cached response is returned unchanged below - the same
+  // accepted gap behavior as a duplicate-NIM rejection or any DB sequence.
+  const { registrationSequence } = await prisma.recruitmentPeriod.update({
+    where: { id: payload.periodId },
+    data: { registrationSequence: { increment: 1 } },
+    select: { registrationSequence: true },
+  });
+
+  for (let attempt = 0; attempt < SUBMIT_MAX_ATTEMPTS; attempt += 1) {
     try {
       return await prisma.$transaction(async (transaction) => {
       await transaction.$queryRaw`
@@ -285,13 +319,8 @@ export async function submitRegistration(input: {
         );
       }
 
-      const sequence = await transaction.recruitmentPeriod.update({
-        where: { id: period.id },
-        data: { registrationSequence: { increment: 1 } },
-        select: { registrationSequence: true },
-      });
       const registrationNumber =
-        `${period.registrationPrefix}-${String(sequence.registrationSequence).padStart(4, "0")}`;
+        `${period.registrationPrefix}-${String(registrationSequence).padStart(4, "0")}`;
       const candidate = await transaction.candidate.create({
         data: {
           periodId: period.id,
@@ -306,7 +335,6 @@ export async function submitRegistration(input: {
           phone: normalizePhone(payload.identity.phone),
           email: payload.identity.email.trim(),
           normalizedEmail: normalizeEmail(payload.identity.email),
-          gpa: payload.identity.gpa,
           domicile: payload.identity.domicile.trim(),
           essayOrgExperience: payload.essays.organizationExperience.trim(),
           essayContribution: payload.essays.contribution.trim(),
@@ -410,9 +438,22 @@ export async function submitRegistration(input: {
         },
       });
       return response;
-      }, { isolationLevel: "Serializable", timeout: 20_000 });
+      // Serializable isolation is not load-bearing for this transaction's
+      // correctness: idempotency-key replay safety comes from the
+      // pg_advisory_xact_lock above (isolation-independent), NIM/email
+      // uniqueness from the DB unique constraint (P2002 below, any
+      // isolation), the registration-number counter is now a pre-assigned
+      // atomic increment outside this transaction, and the upload-claim
+      // update's WHERE candidateId=null guard is safe under Postgres's
+      // read-committed "match against latest committed row" UPDATE
+      // semantics. Serializable's whole-transaction read/write dependency
+      // tracking was instead the dominant source of aborts under a
+      // registration-deadline traffic spike (Phase 8 P4 load test) even
+      // after the counter was extracted, so this now runs at Postgres's
+      // default read-committed isolation; the retry loop above remains as
+      // a safety net for genuine deadlocks.
+      }, { timeout: 20_000 });
     } catch (error) {
-      if (isSerializationFailure(error) && attempt < 2) continue;
       if (error instanceof RegistrationSubmissionError) throw error;
       if (isUniqueViolation(error)) {
         throw new RegistrationSubmissionError(
@@ -420,6 +461,17 @@ export async function submitRegistration(input: {
           409,
           "DUPLICATE_CANDIDATE",
         );
+      }
+      // A serialization failure on the final attempt must fall through to
+      // the TRANSACTION_RETRY_EXHAUSTED response below, not leak the raw
+      // driver error - previously `attempt < 2` was false on that last
+      // attempt and this branch re-threw the unwrapped PrismaClientKnownRequestError.
+      if (isSerializationFailure(error)) {
+        if (attempt < SUBMIT_MAX_ATTEMPTS - 1) {
+          await sleep(retryBackoffMs(attempt));
+          continue;
+        }
+        break;
       }
       throw error;
     }

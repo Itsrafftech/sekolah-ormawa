@@ -1,4 +1,7 @@
-export const REGISTRATION_DRAFT_SCHEMA_VERSION = 3;
+// Bumped to 4: IPK (gpa) removed from identity (ADR-040) - a draft saved
+// under schema 3 still has a gpa field the form no longer renders, so it
+// must be discarded rather than restored.
+export const REGISTRATION_DRAFT_SCHEMA_VERSION = 4;
 
 export type UploadReference = {
   id: string;
@@ -30,7 +33,6 @@ export type RegistrationPayload = {
     studyProgramId: string;
     phone: string;
     email: string;
-    gpa: number;
     domicile: string;
   };
   choices: [

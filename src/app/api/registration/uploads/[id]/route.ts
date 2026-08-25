@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
 import { sha256 } from "@/lib/security/crypto";
+import { AuthServiceError } from "@/server/auth/errors";
+import { consumeAuthRateLimit } from "@/server/auth/rate-limit";
+import { assertValidCsrf, clientIpHash } from "@/server/auth/security";
 import { readRegistrationOwner } from "@/server/registration/owner";
 import {
   removeOwnedUpload,
@@ -12,6 +15,17 @@ import { getPrivateStorage } from "@/server/storage/private-storage";
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(request: NextRequest, context: RouteContext) {
+  try {
+    await consumeAuthRateLimit({
+      scope: "REGISTRATION_DOWNLOAD",
+      identity: "public",
+      ipHash: clientIpHash(request.headers),
+      maximum: 60,
+    });
+  } catch {
+    return NextResponse.json({ error: "Terlalu banyak percobaan. Tunggu sebelum mencoba kembali." }, { status: 429 });
+  }
+
   const { id } = await context.params;
   const ownerToken = readRegistrationOwner(request);
   const expiresAt = Number(request.nextUrl.searchParams.get("expires"));
@@ -38,6 +52,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
 }
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
+  try {
+    assertValidCsrf(request);
+  } catch (error) {
+    const message = error instanceof AuthServiceError ? error.message : "Request state-changing tidak sah.";
+    return NextResponse.json({ error: message }, { status: 403 });
+  }
   const { id } = await context.params;
   const ownerToken = readRegistrationOwner(request);
   if (!ownerToken) return NextResponse.json({ error: "Ownership upload tidak tersedia." }, { status: 401 });

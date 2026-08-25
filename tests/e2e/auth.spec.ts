@@ -76,10 +76,13 @@ test("Super Admin dipaksa ganti password lalu menerima session baru dan shell", 
   await page.getByLabel("Ulangi password baru", { exact: true }).fill(changedPassword);
   await page.getByRole("button", { name: "Ganti password" }).click();
   await expect(page).toHaveURL(/\/admin\/dashboard$/u, { timeout: 15_000 });
-  await expect(page.getByRole("heading", { name: /Identitas terverifikasi/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dashboard PJ" })).toBeVisible();
   await expect(page.getByText("SUPER_ADMIN", { exact: true })).toBeVisible();
   await expect(page.getByText("sekolah.admin.all", { exact: true })).toBeVisible();
-  await expect(page.getByText(/Tidak ada kandidat, statistik/)).toBeVisible();
+  await expect(page.getByText(/Security hardening penuh, backup\/restore drill/)).toBeVisible();
+  await expect(page.getByRole("link", { name: /Kelola akun PJ/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Periode & override lock/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Broadcast/ })).toBeVisible();
 });
 
 test("PJ mendapat scope Birdep dan tidak mendapat permission Super Admin", async ({ page }) => {
@@ -92,6 +95,9 @@ test("PJ mendapat scope Birdep dan tidak mendapat permission Super Admin", async
   await expect(page.getByText("DEPT_PJ", { exact: true })).toBeVisible();
   await expect(page.getByText("Birdep Sintetis A", { exact: true })).toBeVisible();
   await expect(page.getByText("sekolah.admin.all", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Kelola akun PJ/ })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Periode & override lock/ })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Broadcast/ })).toHaveCount(0);
 });
 
 test("lupa password generik, local sink sekali, reset, dan replay invalid", async ({ page }) => {

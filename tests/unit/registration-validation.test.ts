@@ -52,7 +52,6 @@ function payload(): RegistrationPayload {
       studyProgramId: config.studyPrograms[0].id,
       phone: "0812 0000 0000",
       email: "Peserta@Example.test",
-      gpa: 3.5,
       domicile: "Kota Test",
     },
     choices: [
@@ -83,6 +82,23 @@ describe("registration validation", () => {
 
   it("menerima happy path non-Medbrand tanpa portofolio", () => {
     expect(validateRegistrationPayload(payload(), config).success).toBe(true);
+  });
+
+  it("menolak consent yang belum dicentang dengan pesan Indonesia, bukan pesan Zod mentah", () => {
+    const input = payload();
+    input.consent.truthful = false as unknown as true;
+    input.consent.processing = false as unknown as true;
+    const result = validateRegistrationPayload(input, config);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors["consent.truthful"]).toBe("Pernyataan kebenaran data wajib disetujui.");
+      expect(result.errors["consent.processing"]).toBe("Persetujuan pemrosesan data wajib diberikan.");
+      // Guards specifically against the bug found in live UAT: Zod's
+      // default literal-mismatch message ("Invalid input: expected true")
+      // leaking straight to the user instead of a translated message.
+      expect(result.errors["consent.truthful"]).not.toMatch(/invalid input/iu);
+      expect(result.errors["consent.processing"]).not.toMatch(/invalid input/iu);
+    }
   });
 
   it("menolak dua pilihan yang sama dan motivasi kurang dari 100 kata", () => {

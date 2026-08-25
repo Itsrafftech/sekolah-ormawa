@@ -29,6 +29,21 @@
 | ADR-023 | FINAL - Phase 4 | Reset memakai token hash aplikasi | `password_reset_tokens` single-use menggantikan sumber kebenaran `verifications` |
 | ADR-024 | FINAL - Phase 4 | Rate limit dan revocation atomik di PostgreSQL | HMAC identity/IP, counter conflict-safe, dan session version |
 | ADR-025 | FINAL - Phase 4 | Authorization backend; resource luar scope menjadi 404 | Role/scope tidak diterima dari client dan denial ter-audit |
+| ADR-026 | FINAL - Phase 5 | Kandidat yang terkunci Birdep lain hilang total dari dashboard Birdep lain | Segmen primary/secondary/locked tidak menampilkan kandidat lintas Birdep begitu status menjadi `LOCKED` oleh Birdep lain; mengurangi enumeration, konsisten ADR-025 |
+| ADR-027 | FINAL - Phase 5 | File viewer dashboard memakai policy role/scope backend, bukan owner-token HMAC | Endpoint `api/admin/candidates/[id]/files/[fileId]` mengautorisasi tiap request dari session admin; menggantikan pola Fase 3 yang khusus untuk draft publik |
+| ADR-028 | FINAL - Phase 5 | Super Admin meninjau kandidat lewat satu Birdep terpilih (department switcher), bukan overview lintas-Birdep | Overview/manajemen lintas-Birdep, akun, periode, override, export, dan broadcast tetap Phase 7 (ADM-02) |
+| ADR-029 | FINAL - Phase 5 | Catatan Birdep bersifat scoped per-department, bukan per-pembuat | PJ manapun dalam Birdep yang sama dapat mengubah/menghapus (soft-delete) catatan Birdep tersebut, konsisten dengan permission `note.manage.own_birdep` yang berskala Birdep |
+| ADR-030 | FINAL - Phase 6 | Lock hanya diizinkan saat periode `OPEN`; unlock diizinkan saat `OPEN` atau `CLOSED` (ditolak saat `ARCHIVED`) dan mensyaratkan `allowUnlock=true` pada periode | Keputusan eksplisit pemilik proyek; lock berjendela lebih sempit daripada unlock - klaim kandidat berhenti begitu periode ditutup, sedangkan unlock tetap tersedia untuk koreksi administratif |
+| ADR-031 | FINAL - Phase 6 | `lockReason`, `unlockReason`, dan `overrideReason` seluruhnya wajib diisi | Keputusan eksplisit pemilik proyek; `overrideReason`/aksi override lock baru dibangun Phase 7, tetapi kebijakan wajib-nya dikunci sekarang agar konsisten |
+| ADR-032 | FINAL - Phase 8 | Period create (membuat periode baru dari nol) ditunda sampai setelah Phase 8 | Keputusan eksplisit pemilik proyek; edit periode dari seed (Phase 7) sudah cukup untuk MVP |
+| ADR-033 | FINAL - Phase 8 | Browse/search kandidat lintas-Birdep penuh untuk Super Admin tidak dibangun untuk MVP | Keputusan eksplisit pemilik proyek; department switcher + daftar locked (Phase 7) sudah cukup |
+| ADR-034 | FINAL - Phase 8 | State machine transisi status periode (validasi transisi DRAFT/OPEN/CLOSED/ARCHIVED yang masuk akal) dicatat sebagai technical debt post-MVP, tidak dibangun | Keputusan eksplisit pemilik proyek; operator bertanggung jawab memilih transisi yang benar sampai state machine dibangun |
+| ADR-035 | FINAL - Phase 9 | Production private storage adalah MinIO self-hosted di server Contabo milik Biro, bukan Supabase Storage | Menggantikan rekomendasi Supabase di §Rekomendasi private storage; diakses lewat S3 API (MinIO S3-compatible) via `@aws-sdk/client-s3`; bucket privat tanpa akses publik/anonim, `put`/`read`/`delete` dan `createSignedUpload`/`createSignedDownload` (presigned URL 5 menit default, `STORAGE_SIGNED_URL_TTL_SECONDS`) diautentikasi kredensial aplikasi sendiri |
+| ADR-036 | FINAL - Phase 9 | Production email adalah Resend (resend.com) lewat SDK/HTTP API, bukan SMTP langsung | `RESEND_API_KEY`/`RESEND_FROM_EMAIL` dari environment variable; menggantikan `LocalEmailSinkAdapter` development-only untuk `NODE_ENV=production` |
+| ADR-037 | FINAL - Phase 9 | Deployment target production adalah self-hosted Docker Compose di server Contabo milik Biro, bukan Vercel/PaaS | Nginx reverse proxy, TLS lewat Let's Encrypt/certbot, environment variable dari file `.env` di server (bukan platform secret manager pihak ketiga); lihat RUNBOOK.md §Deployment readiness |
+| ADR-038 | FINAL - Phase 9 | Owner domain/hosting/backup production adalah pemilik proyek sendiri, menggunakan server Contabo milik Biro | Menutup blocking item #5 di §Keputusan yang masih blocking |
+| ADR-039 | FINAL - Phase 9 | Port Postgres Docker development permanen di `15432` (bukan `5432`/`55432`) | Windows Hyper-V/WinNAT mengunci rentang port dinamis yang menabrak port sebelumnya; `docker-compose.yml`, `.env`, `.env.example` konsisten memakai `15432` |
+| ADR-040 | FINAL - UAT feedback | Field IPK dihapus dari form pendaftaran, dashboard PJ, dan export CSV | Keputusan eksplisit pemilik proyek dari UAT lokal; peserta Angkatan 63 mendaftar sebagai mahasiswa baru sebelum semester pertama selesai, sehingga belum memiliki IPK. `Candidate.gpa` dijadikan nullable (bukan di-drop) di schema Prisma - pilihan paling aman untuk data kandidat yang sudah ada; CHECK constraint `candidates_gpa_check` (0.00-4.00) tetap berlaku untuk baris manapun yang masih punya nilai gpa. Draft schema version pendaftaran dinaikkan ke 4 agar draft localStorage lama (masih berisi field gpa) tidak dipulihkan dalam bentuk usang. |
 
 ## Dampak terhadap PRD awal
 
@@ -138,12 +153,13 @@ Nama berikut adalah kontrak konfigurasi yang direncanakan. File `.env.example` h
 | `SEED_SUPER_ADMIN_PASSWORD` | Ya | Password akun fixture Super Admin development |
 | `SEED_DEPT_PJ_PASSWORD` | Ya | Password akun fixture PJ development |
 | `IP_HASH_SECRET` | Ya | HMAC/hash IP pada audit/rate limit |
-| `SUPABASE_URL` | Tidak | Endpoint project storage/database bila digunakan |
-| `SUPABASE_SERVICE_ROLE_KEY` | Ya | Akses server-only ke private storage |
+| `MINIO_ENDPOINT` | Tidak | URL endpoint MinIO self-hosted (ADR-035) |
+| `MINIO_ACCESS_KEY` | Ya | Akses server-only ke private storage MinIO |
+| `MINIO_SECRET_KEY` | Ya | Akses server-only ke private storage MinIO |
 | `STORAGE_BUCKET_CANDIDATES` | Tidak | Nama bucket private kandidat |
 | `STORAGE_SIGNED_URL_TTL_SECONDS` | Tidak | Umur URL unduh sementara |
-| `RESEND_API_KEY` | Ya | Credential provider email yang direncanakan |
-| `EMAIL_FROM` | Tidak | Sender terverifikasi |
+| `RESEND_API_KEY` | Ya | Credential provider email Resend (ADR-036) |
+| `RESEND_FROM_EMAIL` | Tidak | Sender terverifikasi di Resend |
 | `CRON_SECRET` | Ya | Otorisasi worker/outbox/cleanup |
 | `TURNSTILE_SECRET_KEY` | Ya | Abuse protection server bila diaktifkan |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Tidak | Site key public bila diaktifkan |
@@ -166,11 +182,9 @@ Nama berikut adalah kontrak konfigurasi yang direncanakan. File `.env.example` h
 
 `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `AUTH_SECRET`, dan secret lain hanya tersedia pada server/secret manager dan dilarang menggunakan prefix `NEXT_PUBLIC_`.
 
-## Rekomendasi private storage
+## Private storage production
 
-Supabase Storage private bucket direkomendasikan untuk MVP karena mendukung access control/RLS, pembatasan MIME dan ukuran bucket, signed upload, serta signed URL download berumur pendek. Service role hanya digunakan server-side. Aplikasi tetap menyimpan metadata/ownership di PostgreSQL Sekolah dan menggunakan adapter agar dapat dipindahkan ke storage S3-compatible lain.
-
-Sumber resmi: [private bucket dan signed download](https://supabase.com/docs/guides/storage/buckets/fundamentals), [access control](https://supabase.com/docs/guides/storage/security/access-control), dan [signed upload](https://supabase.com/docs/reference/javascript/file-buckets-createsigneduploadurl).
+**SUPERSEDED oleh ADR-035 (Phase 9).** Supabase Storage sebelumnya direkomendasikan untuk MVP; pemilik proyek memutuskan MinIO self-hosted di server Contabo milik Biro sebagai gantinya (S3-compatible, sama-sama mendukung bucket privat, signed upload/download berumur pendek, dan service credential server-side saja). Aplikasi tetap menyimpan metadata/ownership di PostgreSQL Sekolah; adapter (`MinioPrivateStorage`, `src/server/storage/private-storage.ts`) mengimplementasikan interface yang sama sehingga tetap dapat dipindahkan ke storage S3-compatible lain bila perlu.
 
 ## Keputusan yang masih blocking
 
@@ -184,11 +198,11 @@ Sumber resmi: [private bucket dan signed download](https://supabase.com/docs/gui
 
 ### Blocking sebelum fitur terkait diaktifkan
 
-1. Persetujuan project/provider Supabase dan owner database/storage sebelum storage production diaktifkan.
-2. Sender domain, provider, template, volume, dan owner email sebelum email production diaktifkan.
+1. ~~Persetujuan project/provider storage production~~ **SELESAI (ADR-035, Phase 9)**: MinIO self-hosted Contabo, owner pemilik proyek sendiri.
+2. ~~Sender domain, provider, template, volume, dan owner email production~~ **SELESAI (ADR-036, Phase 9)**: Resend, sender domain/template konkret masih perlu dikonfigurasi pemilik proyek di dashboard Resend sebelum smoke test pertama.
 3. Identitas Super Admin awal dan kanal aman distribusi credential sebelum UAT auth.
 4. Parameter session/reset/rate-limit final berdasarkan risk review sebelum production/UAT final.
-5. Owner domain, hosting, CI, backup, monitoring, dan on-call sebelum Phase 8 selesai.
+5. ~~Owner domain, hosting, CI, backup, monitoring, dan on-call~~ **SELESAI (ADR-037/038, Phase 9)**: pemilik proyek sendiri, server Contabo milik Biro.
 
 ### Non-blocking/future
 

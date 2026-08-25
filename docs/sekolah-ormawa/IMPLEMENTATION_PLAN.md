@@ -2,13 +2,13 @@
 
 ## Identitas dan keputusan final
 
-- Status: Phase 4 selesai, menunggu approval Phase 5
-- Tanggal: 2026-08-03 (Asia/Jakarta)
-- Repository kanonis: `C:\Users\rafii\OneDrive\Documents\projectan\sekolah-ormawa`
+- Status: Phase 9 selesai (MinIO, Resend, deployment self-hosted Contabo, schema drift fix), menunggu approval pemilik proyek
+- Tanggal: 2026-08-12 (Asia/Jakarta)
+- Repository kanonis: `C:\projectan\sekolah-ormawa`
 - Domain produksi: `sekolah.ormawaeksekutifpku.com`
 - Bentuk aplikasi: repository dan aplikasi standalone
 - Runtime dependency ke Nexus/Tevo: tidak ada untuk MVP
-- Batas fase saat ini: auth internal dan shell identitas/permission selesai; dashboard kandidat Phase 5 dan deployment belum dimulai
+- Batas fase saat ini: seluruh 9 fase (fondasi s.d. deployment artifact self-hosted) selesai secara fungsional, termasuk implementasi adapter production (MinIO, Resend) yang sebelumnya jadi gap blocking Phase 8. **Belum deploy ke production sungguhan** - artefak Docker/Nginx sudah dibangun dan diverifikasi lokal (bukan di server Contabo asli), DNS/TLS/credential production belum diisi nilai sungguhan, smoke test kirim email nyata belum dijalankan. Lihat "Hasil Phase 9" di `PHASE_STATUS.md`.
 
 Keputusan pemilik proyek ini menggantikan bagian PRD yang menyebut monorepo, akun Nexus, shared authentication, atau SSO sebagai kebutuhan MVP. SSO Nexus dipindahkan ke future scope. Nexus-Tevo hanya menjadi referensi read-only untuk struktur organisasi, terminologi, dan identitas visual yang relevan.
 
@@ -253,16 +253,17 @@ Referensi: [Supabase private buckets](https://supabase.com/docs/guides/storage/b
 | REG-05 | Portofolio wajib bersyarat untuk pilihan Media Branding, deskripsi item, validasi file/URL, dan batas configurable | 3 | Selesai; akses PJ tetap Phase 5 |
 | AUTH-01 | Login internal, Argon2id, database session | 4 | Selesai; login/UI/cookie/generic error/E2E tersedia |
 | AUTH-02 | Forced password, reset, logout, revoke, disable, rate limit | 4 | Selesai pada service/route; lifecycle akun oleh Super Admin tetap Phase 7 |
-| AUTH-03 | Role/permission/backend guard/department scope | 4 | Selesai dan diuji; resource kandidat baru dipasang Phase 5 |
-| PJ-01 | Dashboard/list/detail/search/filter/file viewer | 5 | Direncanakan |
-| PJ-02 | Catatan dan export utility scoped | 5 | Direncanakan |
-| PJ-03 | Preview/download portofolio Media Branding hanya untuk PJ yang berwenang dan Super Admin | 5 | Direncanakan |
-| LOCK-01 | Lock/unlock atomik, 409, audit, visibility | 6 | Direncanakan |
-| LOCK-02 | Placement terpisah dari lock | 6 | Direncanakan |
-| ADM-01 | Akun PJ create/edit/disable/reset/revoke | 7 | Direncanakan |
-| ADM-02 | Periode, kandidat, override, export, broadcast, audit | 7 | Direncanakan |
-| OPS-01 | Security, full QA, backup/restore, UAT | 8 | Direncanakan |
-| OPS-02 | Deployment standalone dan rollback | 8 | Direncanakan |
+| AUTH-03 | Role/permission/backend guard/department scope | 4 | Selesai dan diuji; resource kandidat dipasang Phase 5 via `requireDepartmentAccess` (SUPER_ADMIN lintas Birdep, DEPT_PJ terkunci) |
+| PJ-01 | Dashboard/list/detail/search/filter/file viewer | 5 | Selesai; export utility (bukan preview) tetap Phase 7 |
+| PJ-02 | Catatan scoped per Birdep (create/update/soft-delete) | 5 | Selesai; export tetap Phase 7 |
+| PJ-03 | Preview/download portofolio Media Branding hanya untuk PJ yang berwenang dan Super Admin | 5 | Selesai; endpoint file viewer berlaku sama untuk CV/foto/KTM/portofolio |
+| LOCK-01 | Lock/unlock atomik, 409, audit, visibility | 6 | Selesai; override lock oleh Super Admin tetap Phase 7 (ADR-031 mengunci kebijakan reason wajib untuk saat itu dibangun) |
+| LOCK-02 | Placement terpisah dari lock | 6 | Selesai; placement dibuat `UNDER_REVIEW` saat lock, status dapat diubah PJ pemegang lock, dihapus saat unlock |
+| ADM-01 | Akun PJ create/edit/disable/reset/revoke | 7 | Selesai; akun Super Admin baru tetap manual (seed/database), bukan lewat UI |
+| ADM-02 | Periode, kandidat, override, export, broadcast, audit | 7 | Selesai; period CREATE (bukan edit) sengaja tidak dibangun - lihat batasan di bawah |
+| OPS-01 | Security, full QA, backup/restore, UAT | 8 | Selesai; 2 bug produksi ditemukan dan diperbaiki (race condition nomor registrasi, WCAG color-contrast); drill backup/restore lulus di environment terpisah |
+| OPS-02 | Deployment standalone dan rollback | 8 | Checklist/dokumentasi selesai (`RUNBOOK.md` §Deployment readiness); **belum dieksekusi** - adapter storage/email production belum diimplementasikan (blocking), owner/jadwal operasional belum ditunjuk; deploy sungguhan tetap menunggu perintah eksplisit terpisah |
+| OPS-03 | Adapter production MinIO + Resend, deployment artifact self-hosted Contabo, schema drift fix | 9 | Selesai; `MinioPrivateStorage`/`ResendEmailAdapter` dibangun dan diuji (MinIO nyata, Resend SDK di-mock); `Dockerfile`/`docker-compose.prod.yml`/`deploy/nginx/nginx.conf` dibangun dan diverifikasi jalan end-to-end secara lokal (bukan di Contabo sungguhan); migration schema drift diterapkan; port dev Postgres dipermanenkan ke `15432` |
 | FUT-01 | Integrasi/SSO Nexus | Future | Di luar scope MVP |
 
 ## Hasil migration development
@@ -272,6 +273,6 @@ Referensi: [Supabase private buckets](https://supabase.com/docs/guides/storage/b
 3. Check role/department dan IPK, unique NIM/email per periode, unique candidate/department choice, serta partial unique active lock diuji pada PostgreSQL nyata.
 4. Seed sintetis dijalankan dua kali tanpa duplikasi.
 5. Reset destruktif otomatis tidak dijalankan; Prisma meminta consent eksplisit. Reproducibility dibuktikan dengan database kosong baru tanpa menghapus data.
-6. Rollback drill tetap Phase 8; production mengutamakan roll-forward.
+6. Rollback plan didokumentasikan Phase 8 (`RUNBOOK.md` §Rollback plan); production mengutamakan roll-forward. Drill restore database (bukan rollback kode) sudah dijalankan dan diverifikasi Phase 8 di environment terpisah - lihat `RUNBOOK.md` §Backup dan restore.
 7. Migration `20260802001000_registration_phase3` menambah model portofolio, confirmation token hash/expiry, relasi period-upload, serta ciphertext response idempotency tanpa operasi destructive.
 8. Migration production belum diotorisasi dan tidak dijalankan.

@@ -77,7 +77,11 @@ async function insertCandidate(
       overrides.normalizedNim ?? `NIM-${candidateId}`,
       fixture.studyProgramId,
       overrides.normalizedEmail ?? `${candidateId}@example.test`,
-      overrides.gpa ?? 3.5,
+      // No default fake gpa (IPK removed from the product - ADR-040); the
+      // column stays nullable+CHECK-constrained at the DB layer, so NULL
+      // is the realistic default here and the constraint test below still
+      // passes an explicit override to exercise the CHECK.
+      overrides.gpa ?? null,
     ],
   );
 

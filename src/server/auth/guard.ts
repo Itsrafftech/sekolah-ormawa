@@ -190,3 +190,30 @@ export async function requireDepartmentResourceScope(
   }
   return departmentId;
 }
+
+/**
+ * Resolve the department a request is allowed to operate on for shared
+ * PJ/Super Admin dashboard resources (Phase 5+). SUPER_ADMIN may access any
+ * department; DEPT_PJ is always pinned to their own session department and
+ * any mismatch is treated as an out-of-scope resource (404), matching
+ * ADR-025's enumeration-reduction rule used elsewhere in the guard.
+ */
+export async function requireDepartmentAccess(
+  context: AdminContext,
+  requestedDepartmentId: string | null,
+  requestHeaders?: Headers,
+): Promise<string> {
+  requirePasswordChanged(context);
+  if (context.role === "SUPER_ADMIN") {
+    if (!requestedDepartmentId) {
+      throw new AuthServiceError("VALIDATION_ERROR", 400, "Department wajib dipilih.");
+    }
+    return requestedDepartmentId;
+  }
+  const departmentId = requireDepartmentScope(context);
+  if (requestedDepartmentId && requestedDepartmentId !== departmentId) {
+    await auditDenied(context, requestHeaders, "resource-outside-department-scope");
+    throw new AuthServiceError("RESOURCE_NOT_FOUND", 404, "Resource tidak ditemukan.");
+  }
+  return departmentId;
+}

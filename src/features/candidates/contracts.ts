@@ -1,0 +1,136 @@
+export type CandidateSegment = "PRIMARY" | "SECONDARY" | "LOCKED";
+
+export const CANDIDATE_SORT_KEYS = [
+  "submittedAt_asc",
+  "submittedAt_desc",
+  "name_asc",
+  "name_desc",
+] as const;
+
+export type CandidateSortKey = (typeof CANDIDATE_SORT_KEYS)[number];
+
+export type CandidateListQuery = {
+  segment: CandidateSegment;
+  search: string | null;
+  cursor: string | null;
+  limit: number;
+  sort: CandidateSortKey;
+  departmentId: string | null;
+};
+
+export type CandidateListItem = {
+  id: string;
+  registrationNumber: string | null;
+  name: string;
+  nim: string;
+  studyProgramName: string;
+  rank: "PRIMARY" | "SECONDARY";
+  status: "SUBMITTED" | "LOCKED" | "WITHDRAWN" | "ARCHIVED";
+  submittedAt: string;
+};
+
+export type CandidateListResult = {
+  items: CandidateListItem[];
+  nextCursor: string | null;
+  counts: Record<CandidateSegment, number>;
+};
+
+export type CandidateUploadSummary = {
+  id: string;
+  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "PORTFOLIO";
+  originalFileName: string;
+  sizeBytes: number;
+  detectedMimeType: string | null;
+};
+
+export type CandidatePortfolioSummary = {
+  id: string;
+  type: "FILE" | "EXTERNAL_LINK";
+  title: string | null;
+  description: string | null;
+  applicantRole: string | null;
+  creationYear: number | null;
+  sortOrder: number;
+  externalUrl: string | null;
+  file: CandidateUploadSummary | null;
+};
+
+export type CandidateChoiceSummary = {
+  departmentId: string;
+  departmentName: string;
+  departmentCode: string;
+  rank: "PRIMARY" | "SECONDARY";
+  motivation: string;
+  contribution: string | null;
+};
+
+export type CandidateLockSummary = {
+  id: string;
+  departmentId: string;
+  departmentName: string;
+  lockedByName: string;
+  lockedAt: string;
+  lockReason: string | null;
+};
+
+export type PlacementStatusValue =
+  | "UNDER_REVIEW"
+  | "PLACED"
+  | "WAITLISTED"
+  | "NOT_SELECTED"
+  | "WITHDRAWN";
+
+export const PLACEMENT_STATUS_VALUES: readonly PlacementStatusValue[] = [
+  "UNDER_REVIEW",
+  "PLACED",
+  "WAITLISTED",
+  "NOT_SELECTED",
+  "WITHDRAWN",
+];
+
+export type CandidatePlacementSummary = {
+  status: PlacementStatusValue;
+  mentorLabel: string | null;
+  reason: string | null;
+  placedAt: string | null;
+  updatedAt: string;
+};
+
+export type CandidateDetail = {
+  id: string;
+  registrationNumber: string | null;
+  name: string;
+  nim: string;
+  className: string;
+  studyProgramName: string;
+  phone: string;
+  email: string;
+  domicile: string;
+  essayOrgExperience: string;
+  essayContribution: string;
+  essayBalance: string;
+  status: "SUBMITTED" | "LOCKED" | "WITHDRAWN" | "ARCHIVED";
+  submittedAt: string;
+  choices: CandidateChoiceSummary[];
+  uploads: CandidateUploadSummary[];
+  portfolios: CandidatePortfolioSummary[];
+  activeLock: CandidateLockSummary | null;
+  placement: CandidatePlacementSummary | null;
+};
+
+export type DepartmentNoteDto = {
+  id: string;
+  candidateId: string;
+  body: string;
+  createdById: string;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DepartmentOption = {
+  id: string;
+  code: string;
+  name: string;
+  shortName: string;
+};

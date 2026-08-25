@@ -11,7 +11,8 @@ export type AuthErrorCode =
   | "INVALID_CSRF"
   | "INVALID_CREDENTIALS"
   | "INVALID_PASSWORD"
-  | "INVALID_RESET_TOKEN";
+  | "INVALID_RESET_TOKEN"
+  | "VALIDATION_ERROR";
 
 export class AuthServiceError extends Error {
   constructor(

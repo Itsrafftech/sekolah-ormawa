@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { AuthServiceError } from "@/server/auth/errors";
+import { consumeAuthRateLimit } from "@/server/auth/rate-limit";
+import { assertValidCsrf, clientIpHash } from "@/server/auth/security";
 import { processEmailOutbox } from "@/server/email/outbox";
 import { readRegistrationOwner } from "@/server/registration/owner";
 import {
@@ -8,6 +11,27 @@ import {
 } from "@/server/registration/submit";
 
 export async function POST(request: NextRequest) {
+  try {
+    assertValidCsrf(request);
+  } catch (error) {
+    const message = error instanceof AuthServiceError ? error.message : "Request state-changing tidak sah.";
+    return NextResponse.json({ error: message }, { status: 403 });
+  }
+
+  try {
+    await consumeAuthRateLimit({
+      scope: "REGISTRATION_SUBMIT",
+      identity: "public",
+      ipHash: clientIpHash(request.headers),
+      maximum: 10,
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "Terlalu banyak percobaan submit. Tunggu sebelum mencoba kembali." },
+      { status: 429 },
+    );
+  }
+
   const idempotencyKey = request.headers.get("Idempotency-Key") ?? "";
   const ownerToken = readRegistrationOwner(request);
   if (!ownerToken) {
