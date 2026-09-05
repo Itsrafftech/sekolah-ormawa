@@ -13,6 +13,7 @@ const deptA = "82200000-0000-4000-8000-000000000001";
 const studyProgramId = "82300000-0000-4000-8000-000000000001";
 
 let buildCandidateExportCsv: typeof import("@/server/candidates/export").buildCandidateExportCsv;
+let disconnectPrismaForTests: typeof import("@/lib/db").disconnectPrismaForTests;
 
 async function insertCandidate(id: string, name: string, status: "SUBMITTED" | "WITHDRAWN"): Promise<void> {
   await pool.query(
@@ -30,6 +31,7 @@ async function insertCandidate(id: string, name: string, status: "SUBMITTED" | "
 
 beforeAll(async () => {
   ({ buildCandidateExportCsv } = await import("@/server/candidates/export"));
+  ({ disconnectPrismaForTests } = await import("@/lib/db"));
 
   await pool.query(`
     TRUNCATE TABLE candidate_choices, candidates, study_programs, recruitment_periods, departments RESTART IDENTITY CASCADE
@@ -55,6 +57,7 @@ afterAll(async () => {
   await pool.query(`
     TRUNCATE TABLE candidate_choices, candidates, study_programs, recruitment_periods, departments RESTART IDENTITY CASCADE
   `);
+  await disconnectPrismaForTests();
   await pool.end();
 });
 

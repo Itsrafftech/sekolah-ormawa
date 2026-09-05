@@ -8,6 +8,15 @@ export function authErrorResponse(error: unknown): Response {
       error: { code: error.code, message: error.message },
     }, error.status);
   }
+  // AuthServiceError (wrong password, rate limited, CSRF, scope, etc.) is
+  // an expected, already-classified outcome handled above. Anything else
+  // reaching here is unexpected (a thrown database/network error, a bug)
+  // and previously fell straight to a generic 500 with zero server-side
+  // trace - this is the shared error boundary for every admin API route
+  // (33 call sites), so logging it here covers all of them at once. Logs
+  // the error's own identity only (name/message/stack) - never the
+  // request body, so credentials/PII are never at risk of being logged.
+  console.error("[authErrorResponse] unhandled error:", error);
   return noStoreJson({
     data: null,
     error: { code: "AUTH_ERROR", message: "Permintaan autentikasi tidak dapat diproses." },

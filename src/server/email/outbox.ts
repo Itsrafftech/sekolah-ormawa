@@ -43,11 +43,22 @@ export type BroadcastEmailPayload = {
   body: string;
 };
 
+export type SelectionForwardedEmailPayload = {
+  kind: "SELECTION_FORWARDED";
+  recipient: string;
+  recipientName: string;
+  candidateName: string;
+  candidateNim: string;
+  departmentName: string;
+  dashboardUrl: string;
+};
+
 export type EmailPayload =
   | RegistrationEmailPayload
   | PasswordResetEmailPayload
   | AccountSetupEmailPayload
-  | BroadcastEmailPayload;
+  | BroadcastEmailPayload
+  | SelectionForwardedEmailPayload;
 
 export interface EmailAdapter {
   send(payload: EmailPayload, idempotencyKey: string): Promise<void>;
@@ -101,6 +112,12 @@ function renderEmail(payload: EmailPayload): { subject: string; html: string; te
       const text = `Halo ${payload.recipientName},\n\n${payload.body}\n\nSekolah Ormawa Eksekutif PKU`;
       const html = `<p>Halo ${escapeHtml(payload.recipientName)},</p><p>${escapeHtml(payload.body).replaceAll("\n", "<br/>")}</p><p>Sekolah Ormawa Eksekutif PKU</p>`;
       return { subject: payload.subject, html, text };
+    }
+    case "SELECTION_FORWARDED": {
+      const subject = `Pelamar dialihkan ke Birdep ${payload.departmentName}`;
+      const text = `Halo ${payload.recipientName},\n\nPelamar berikut dialihkan ke Birdep ${payload.departmentName} sebagai Pilihan 2:\n\nNama: ${payload.candidateName}\nNIM: ${payload.candidateNim}\n\nTinjau dan ambil keputusan lewat dashboard:\n${payload.dashboardUrl}\n\nSekolah Ormawa Eksekutif PKU`;
+      const html = `<p>Halo ${escapeHtml(payload.recipientName)},</p><p>Pelamar berikut dialihkan ke Birdep <strong>${escapeHtml(payload.departmentName)}</strong> sebagai Pilihan 2:</p><ul><li>Nama: ${escapeHtml(payload.candidateName)}</li><li>NIM: ${escapeHtml(payload.candidateNim)}</li></ul><p><a href="${escapeHtml(payload.dashboardUrl)}">Tinjau dan ambil keputusan lewat dashboard</a></p><p>Sekolah Ormawa Eksekutif PKU</p>`;
+      return { subject, html, text };
     }
     case "REGISTRATION_CONFIRMATION":
     default: {

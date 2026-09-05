@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { LogOut, RotateCcw } from "lucide-react";
 
 export function SessionActions() {
-  const router = useRouter();
   const [loading, setLoading] = useState<"logout" | "revoke" | null>(null);
 
   async function act(kind: "logout" | "revoke") {
@@ -14,8 +12,12 @@ export function SessionActions() {
       const endpoint = kind === "logout" ? "/api/admin/auth/logout" : "/api/admin/auth/revoke-all";
       const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       const result = await response.json() as { data?: { next?: string } };
-      router.replace(result.data?.next ?? "/admin/login?reason=session-expired");
-      router.refresh();
+      // Hard navigation - see login-form.tsx's identical comment. Logout
+      // is the other half of the same identity-boundary bug: without it,
+      // a page from the session that just ended can stay in the Router
+      // Cache and get served (with its stale departmentId) to whoever
+      // logs into this tab next.
+      window.location.href = result.data?.next ?? "/admin/login?reason=session-expired";
     } finally {
       setLoading(null);
     }

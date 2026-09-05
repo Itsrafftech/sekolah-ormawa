@@ -50,14 +50,33 @@ export function OverrideLockPanel({ initialLocks, initialDeleted }: OverrideLock
     }
   }
 
-  async function restore(candidateId: string) {
+  async function restore(candidateId: string, eliminated: boolean) {
+    // An ELIMINATED candidate needs both deletedAt cleared AND their
+    // decision reset to PENDING, atomically - the plain /restore endpoint
+    // only does the former, so it goes through the selection-system
+    // restore endpoint instead, which also requires a reason.
+    let reason: string | undefined;
+    if (eliminated) {
+      reason = (reasonDraft[candidateId] ?? "").trim();
+      if (reason.length < 5) {
+        setError("Alasan restore minimal 5 karakter.");
+        return;
+      }
+    }
     setPending(candidateId);
     setError(null);
     setNotice(null);
     try {
-      const response = await fetch(`/api/admin/candidates/${candidateId}/restore`, { method: "POST" });
+      const response = eliminated
+        ? await fetch(`/api/admin/candidates/${candidateId}/selection/restore`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reason }),
+          })
+        : await fetch(`/api/admin/candidates/${candidateId}/restore`, { method: "POST" });
       if (!response.ok) {
-        setError("Kandidat tidak dapat dipulihkan.");
+        const result = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
+        setError(result?.error?.message ?? "Kandidat tidak dapat dipulihkan.");
         return;
       }
       setDeleted((previous) => previous.filter((item) => item.id !== candidateId));
@@ -115,10 +134,21 @@ export function OverrideLockPanel({ initialLocks, initialDeleted }: OverrideLock
               <li key={candidate.id}>
                 <div>
                   <strong>{candidate.name}</strong>
-                  <span>{candidate.registrationNumber ?? "--"} &middot; dihapus {new Date(candidate.deletedAt).toLocaleString("id-ID")}</span>
+                  <span>
+                    {candidate.registrationNumber ?? "--"} &middot; dihapus {new Date(candidate.deletedAt).toLocaleString("id-ID")}
+                    {candidate.eliminated ? " · digugurkan PJ Pilihan 2" : ""}
+                  </span>
                 </div>
                 <div className="override-panel__action">
-                  <button type="button" disabled={pending === candidate.id} onClick={() => void restore(candidate.id)}>
+                  {candidate.eliminated ? (
+                    <input
+                      type="text"
+                      placeholder="Alasan restore..."
+                      value={reasonDraft[candidate.id] ?? ""}
+                      onChange={(event) => setReasonDraft((previous) => ({ ...previous, [candidate.id]: event.target.value }))}
+                    />
+                  ) : null}
+                  <button type="button" disabled={pending === candidate.id} onClick={() => void restore(candidate.id, candidate.eliminated)}>
                     {pending === candidate.id ? <LoaderCircle aria-hidden="true" className="spin" size={13} /> : <RotateCcw aria-hidden="true" size={13} />}
                     Pulihkan
                   </button>

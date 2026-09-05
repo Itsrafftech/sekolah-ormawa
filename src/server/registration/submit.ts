@@ -13,6 +13,7 @@ import {
 import { prisma } from "@/lib/db";
 import { getServerEnvironment } from "@/lib/env";
 import { decryptJson, encryptJson, sha256 } from "@/lib/security/crypto";
+import { ensureSelectionDecision } from "@/server/candidates/selection";
 import { getRegistrationAvailability } from "@/server/registration/config";
 
 export class RegistrationSubmissionError extends Error {
@@ -355,6 +356,16 @@ export async function submitRegistration(input: {
       await transaction.fileUpload.updateMany({
         where: { id: { in: allUploadIds }, ownerTokenHash, candidateId: null },
         data: { candidateId: candidate.id, status: "FINALIZED", finalizedAt: now },
+      });
+
+      // Selection decision system (replaces candidate_locks going forward -
+      // see product decision "PERUBAHAN SISTEM SELEKSI"): every candidate
+      // starts with a PENDING decision between their Pilihan 1/2 depts.
+      await ensureSelectionDecision(transaction, {
+        candidateId: candidate.id,
+        periodId: period.id,
+        primaryDeptId: payload.choices[0].departmentId,
+        secondaryDeptId: payload.choices[1].departmentId,
       });
 
       if (payload.portfolio.length > 0) {

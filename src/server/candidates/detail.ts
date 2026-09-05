@@ -65,6 +65,12 @@ export async function getCandidateDetail(
         take: 1,
       },
       placement: true,
+      selectionDecision: {
+        include: {
+          primaryDept: { select: { name: true } },
+          secondaryDept: { select: { name: true } },
+        },
+      },
     },
   });
   if (!candidate) return null;
@@ -131,6 +137,20 @@ export async function getCandidateDetail(
             ? candidate.placement.placedAt.toISOString()
             : null,
           updatedAt: candidate.placement.updatedAt.toISOString(),
+        }
+      : null,
+    selection: candidate.selectionDecision
+      ? {
+          status: candidate.selectionDecision.status,
+          role: candidate.selectionDecision.primaryDeptId === departmentId ? "P1" : "P2",
+          primaryDeptId: candidate.selectionDecision.primaryDeptId,
+          primaryDeptName: candidate.selectionDecision.primaryDept.name,
+          secondaryDeptId: candidate.selectionDecision.secondaryDeptId,
+          secondaryDeptName: candidate.selectionDecision.secondaryDept.name,
+          p1Reason: candidate.selectionDecision.p1Reason,
+          p2Reason: candidate.selectionDecision.p2Reason,
+          p1DecidedAt: candidate.selectionDecision.p1DecidedAt?.toISOString() ?? null,
+          p2DecidedAt: candidate.selectionDecision.p2DecidedAt?.toISOString() ?? null,
         }
       : null,
   };

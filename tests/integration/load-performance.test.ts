@@ -34,6 +34,7 @@ const storage = new MemoryStorage();
 let createPrivateUpload: typeof import("@/server/registration/uploads").createPrivateUpload;
 let submitRegistration: typeof import("@/server/registration/submit").submitRegistration;
 let prisma: typeof import("@/lib/db").prisma;
+let disconnectPrismaForTests: typeof import("@/lib/db").disconnectPrismaForTests;
 
 function percentile(sortedMs: number[], p: number): number {
   const index = Math.min(sortedMs.length - 1, Math.ceil((p / 100) * sortedMs.length) - 1);
@@ -52,7 +53,7 @@ function summarize(label: string, durationsMs: number[]) {
 beforeAll(async () => {
   ({ createPrivateUpload } = await import("@/server/registration/uploads"));
   ({ submitRegistration } = await import("@/server/registration/submit"));
-  ({ prisma } = await import("@/lib/db"));
+  ({ prisma, disconnectPrismaForTests } = await import("@/lib/db"));
 
   await pool.query(`
     TRUNCATE TABLE
@@ -97,6 +98,7 @@ afterAll(async () => {
       period_departments, study_programs, recruitment_periods, departments
     RESTART IDENTITY CASCADE
   `);
+  await disconnectPrismaForTests();
   await pool.end();
 });
 

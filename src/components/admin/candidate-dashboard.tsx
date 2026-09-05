@@ -7,10 +7,39 @@ import { LoaderCircle, Lock, Search, Users } from "lucide-react";
 import type {
   CandidateListItem,
   CandidateSegment,
+  CandidateSelectionInfo,
   DepartmentOption,
 } from "@/features/candidates/contracts";
+import { SELECTION_STATUS_LABEL, SELECTION_STATUS_TONE, type SelectionStatusTone } from "@/features/candidates/selection-status-labels";
+import { StatusPill } from "@/components/ui/status-pill";
 
 type SegmentCounts = Record<CandidateSegment, number>;
+
+/**
+ * Badge shown on a dashboard row for the viewer's own selection role. P1
+ * only needs the one explicit cross-side flag the spec calls out (P2 also
+ * ragu-ragu); P2 gets the visibility-matrix badges spelled out in the
+ * product spec (PENDING/TAKEN carry none - PENDING is a no-op, TAKEN never
+ * reaches P2's list because segmentWhere already excludes it).
+ */
+function selectionBadge(selection: CandidateSelectionInfo | null): { label: string; tone: SelectionStatusTone } | null {
+  if (!selection || selection.status === "PENDING") return null;
+  if (selection.role === "P2" && selection.status === "HESITANT_P1") {
+    return { label: "PJ Pilihan 1 ragu-ragu", tone: "warning" };
+  }
+  if (selection.role === "P1" && selection.status === "HESITANT_P2") {
+    return { label: "PJ Pilihan 2 ragu-ragu", tone: "warning" };
+  }
+  if (selection.role === "P1" && selection.status !== "TAKEN") {
+    // Everything else on P1's own side besides their own TAKEN (which is
+    // implicit - they're the one looking at it) is worth a quiet reminder.
+    return { label: SELECTION_STATUS_LABEL[selection.status], tone: SELECTION_STATUS_TONE[selection.status] };
+  }
+  if (selection.role === "P2") {
+    return { label: SELECTION_STATUS_LABEL[selection.status], tone: SELECTION_STATUS_TONE[selection.status] };
+  }
+  return null;
+}
 
 type CandidateDashboardProps = {
   role: "SUPER_ADMIN" | "DEPT_PJ";
@@ -25,7 +54,7 @@ type CandidateDashboardProps = {
 const SEGMENT_LABEL: Record<CandidateSegment, string> = {
   PRIMARY: "Pilihan utama",
   SECONDARY: "Pilihan kedua",
-  LOCKED: "Terkunci Birdep ini",
+  LOCKED: "Diterima Birdep ini",
 };
 
 type ListResponse = {
@@ -192,17 +221,23 @@ export function CandidateDashboard({
         <p className="candidate-dashboard__empty">Tidak ada kandidat pada segmen ini.</p>
       ) : (
         <ul className="candidate-dashboard__list">
-          {items.map((item) => (
-            <li key={item.id}>
-              <Link href={detailHref(item.id)} className="candidate-dashboard__row">
-                <span className="candidate-dashboard__row-name">{item.name}</span>
-                <span className="candidate-dashboard__row-meta">
-                  {item.nim} &middot; {item.studyProgramName}
-                </span>
-                <span className="candidate-dashboard__row-reg">{item.registrationNumber ?? "--"}</span>
-              </Link>
-            </li>
-          ))}
+          {items.map((item) => {
+            const badge = selectionBadge(item.selection);
+            return (
+              <li key={item.id}>
+                <Link href={detailHref(item.id)} className="candidate-dashboard__row">
+                  <span className="candidate-dashboard__row-name">{item.name}</span>
+                  <span className="candidate-dashboard__row-meta">
+                    {item.nim} &middot; {item.studyProgramName}
+                  </span>
+                  <span className="candidate-dashboard__row-end">
+                    {badge ? <StatusPill tone={badge.tone}>{badge.label}</StatusPill> : null}
+                    <span className="candidate-dashboard__row-reg">{item.registrationNumber ?? "--"}</span>
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
 

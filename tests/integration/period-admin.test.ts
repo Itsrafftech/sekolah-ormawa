@@ -16,6 +16,7 @@ let listPeriods: typeof import("@/server/admin/periods").listPeriods;
 let updatePeriod: typeof import("@/server/admin/periods").updatePeriod;
 let listPeriodDepartments: typeof import("@/server/admin/periods").listPeriodDepartments;
 let updatePeriodDepartment: typeof import("@/server/admin/periods").updatePeriodDepartment;
+let disconnectPrismaForTests: typeof import("@/lib/db").disconnectPrismaForTests;
 
 function headers(): Headers {
   return new Headers({ "User-Agent": "Phase7Integration/1.0", "X-Forwarded-For": "203.0.113.8" });
@@ -24,6 +25,7 @@ function headers(): Headers {
 beforeAll(async () => {
   ({ listPeriods, updatePeriod, listPeriodDepartments, updatePeriodDepartment } =
     await import("@/server/admin/periods"));
+  ({ disconnectPrismaForTests } = await import("@/lib/db"));
 
   await pool.query(`
     TRUNCATE TABLE period_departments, candidates, recruitment_periods, departments, audit_logs RESTART IDENTITY CASCADE
@@ -49,6 +51,7 @@ afterAll(async () => {
   await pool.query(`
     TRUNCATE TABLE period_departments, candidates, recruitment_periods, departments, audit_logs RESTART IDENTITY CASCADE
   `);
+  await disconnectPrismaForTests();
   await pool.end();
 });
 

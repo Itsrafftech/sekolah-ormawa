@@ -1,7 +1,9 @@
 import "server-only";
 
+import type { Prisma } from "@/generated/prisma/client";
 import type { CandidateLockSummary } from "@/features/candidates/contracts";
 import { prisma } from "@/lib/db";
+import { getServerEnvironment } from "@/lib/env";
 import { requestIdFromHeaders, clientIpHash, safeUserAgent } from "@/server/auth/security";
 
 export class CandidateLockError extends Error {
@@ -76,16 +78,26 @@ function assertPeriodAllowsUnlock(period: { status: string; allowUnlock: boolean
   }
 }
 
-async function writeLockAudit(input: {
-  action: "LOCK" | "UNLOCK" | "OVERRIDE";
-  actorUserId: string;
-  entityId: string;
-  departmentId: string;
-  candidateId: string;
-  reason: string;
-  headers: Headers;
-}): Promise<void> {
-  await prisma.auditLog.create({
+// ADR-042: `client` MUST be the caller's own `tx` when writing from inside
+// an open prisma.$transaction() - see writeAuditLog's doc comment
+// (src/server/auth/audit.ts) for why: writing through the global `prisma`
+// client instead needs a second pool connection before the first can
+// commit, which can self-deadlock the pool under high concurrency. This
+// is where the real bug behind the F6-01 race test's occasional failures
+// lived, not a connection-pool sizing or timeout issue.
+async function writeLockAudit(
+  input: {
+    action: "LOCK" | "UNLOCK" | "OVERRIDE";
+    actorUserId: string;
+    entityId: string;
+    departmentId: string;
+    candidateId: string;
+    reason: string;
+    headers: Headers;
+  },
+  client: Prisma.TransactionClient = prisma,
+): Promise<void> {
+  await client.auditLog.create({
     data: {
       action: input.action,
       actorUserId: input.actorUserId,
@@ -201,7 +213,7 @@ export async function lockCandidate(input: {
         candidateId: candidate.id,
         reason: input.reason,
         headers: input.headers,
-      });
+      }, tx);
 
       return {
         id: lock.id,
@@ -211,7 +223,7 @@ export async function lockCandidate(input: {
         lockedAt: lock.lockedAt.toISOString(),
         lockReason: lock.lockReason,
       } satisfies CandidateLockSummary;
-    }, { timeout: 15_000 });
+    }, { timeout: getServerEnvironment().PRISMA_TRANSACTION_TIMEOUT_MS });
   } catch (error) {
     toCleanError(error);
   }
@@ -273,10 +285,10 @@ export async function unlockCandidate(input: {
         candidateId: candidate.id,
         reason: input.reason,
         headers: input.headers,
-      });
+      }, tx);
 
       return true;
-    }, { timeout: 15_000 });
+    }, { timeout: getServerEnvironment().PRISMA_TRANSACTION_TIMEOUT_MS });
   } catch (error) {
     toCleanError(error);
   }
@@ -343,10 +355,10 @@ export async function overrideUnlockCandidate(input: {
         candidateId: candidate.id,
         reason: input.reason,
         headers: input.headers,
-      });
+      }, tx);
 
       return true;
-    }, { timeout: 15_000 });
+    }, { timeout: getServerEnvironment().PRISMA_TRANSACTION_TIMEOUT_MS });
   } catch (error) {
     toCleanError(error);
   }

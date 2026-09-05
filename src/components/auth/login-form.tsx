@@ -2,14 +2,12 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ArrowRight, LoaderCircle, LockKeyhole } from "lucide-react";
 
 import { AuthFeedback } from "@/components/auth/auth-feedback";
 import { PasswordField } from "@/components/auth/password-field";
 
 export function LoginForm({ redirectTo, notice }: { redirectTo: string; notice?: string }) {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -35,8 +33,18 @@ export function LoginForm({ redirectTo, notice }: { redirectTo: string; notice?:
         requestAnimationFrame(() => feedbackRef.current?.focus());
         return;
       }
-      router.replace(result.data.next);
-      router.refresh();
+      // Hard navigation, not router.replace()+refresh(): a client-side
+      // transition here leaves Next.js's Router Cache free to serve a
+      // PREVIOUS session's already-visited pages (e.g. a candidate detail
+      // page whose SelectionPanel action buttons had the old session's
+      // departmentId baked in) even though the cookie now belongs to this
+      // new session - the server then correctly rejects that stale
+      // departmentId as out-of-scope (404 "Resource tidak ditemukan.").
+      // Bug found via UAT (candidate detail page hitting that 404 for a PJ
+      // whose account had just been switched in the same tab). A full
+      // reload tears down the whole Router Cache, so no session-scoped
+      // page can leak across the identity boundary.
+      window.location.href = result.data.next;
     } catch {
       setError("Login tidak dapat diproses. Coba kembali.");
       requestAnimationFrame(() => feedbackRef.current?.focus());

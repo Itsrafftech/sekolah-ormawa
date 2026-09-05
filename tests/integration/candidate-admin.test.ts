@@ -21,6 +21,7 @@ let listDeletedCandidates: typeof import("@/server/admin/candidate-admin").listD
 let softDeleteCandidate: typeof import("@/server/admin/candidate-admin").softDeleteCandidate;
 let restoreCandidate: typeof import("@/server/admin/candidate-admin").restoreCandidate;
 let CandidateAdminError: typeof import("@/server/admin/candidate-admin").CandidateAdminError;
+let disconnectPrismaForTests: typeof import("@/lib/db").disconnectPrismaForTests;
 
 function headers(): Headers {
   return new Headers({ "User-Agent": "Phase7Integration/1.0", "X-Forwarded-For": "203.0.113.9" });
@@ -44,6 +45,7 @@ beforeAll(async () => {
   ({ lockCandidate, overrideUnlockCandidate } = await import("@/server/candidates/lock"));
   ({ listAllLockedCandidates, listDeletedCandidates, softDeleteCandidate, restoreCandidate, CandidateAdminError } =
     await import("@/server/admin/candidate-admin"));
+  ({ disconnectPrismaForTests } = await import("@/lib/db"));
 
   await pool.query(`
     TRUNCATE TABLE
@@ -85,6 +87,7 @@ afterAll(async () => {
       study_programs, recruitment_periods, users, departments, audit_logs, roles
     RESTART IDENTITY CASCADE
   `);
+  await disconnectPrismaForTests();
   await pool.end();
 });
 

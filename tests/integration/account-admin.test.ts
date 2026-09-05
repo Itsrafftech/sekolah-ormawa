@@ -17,6 +17,7 @@ let setAccountBanned: typeof import("@/server/admin/accounts").setAccountBanned;
 let revokeAccountSessions: typeof import("@/server/admin/accounts").revokeAccountSessions;
 let issueAccountResetLink: typeof import("@/server/admin/accounts").issueAccountResetLink;
 let AccountAdminError: typeof import("@/server/admin/accounts").AccountAdminError;
+let disconnectPrismaForTests: typeof import("@/lib/db").disconnectPrismaForTests;
 
 function headers(): Headers {
   return new Headers({ "User-Agent": "Phase7Integration/1.0", "X-Forwarded-For": "203.0.113.7" });
@@ -25,6 +26,7 @@ function headers(): Headers {
 beforeAll(async () => {
   ({ createPjAccount, updateAccount, setAccountBanned, revokeAccountSessions, issueAccountResetLink, AccountAdminError } =
     await import("@/server/admin/accounts"));
+  ({ disconnectPrismaForTests } = await import("@/lib/db"));
 
   await pool.query(`
     TRUNCATE TABLE
@@ -56,6 +58,7 @@ afterAll(async () => {
       audit_logs, departments, roles
     RESTART IDENTITY CASCADE
   `);
+  await disconnectPrismaForTests();
   await pool.end();
 });
 

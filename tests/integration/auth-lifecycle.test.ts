@@ -33,6 +33,7 @@ let consumeAuthRateLimit: typeof import("@/server/auth/rate-limit").consumeAuthR
 let processEmailOutbox: typeof import("@/server/email/outbox").processEmailOutbox;
 let decryptJson: typeof import("@/lib/security/crypto").decryptJson;
 let getEnvironment: typeof import("@/lib/env").getServerEnvironment;
+let disconnectPrismaForTests: typeof import("@/lib/db").disconnectPrismaForTests;
 let fixtureHash = "";
 
 function authHeaders(ip = "203.0.113.63", cookie?: string): Headers {
@@ -69,6 +70,7 @@ beforeAll(async () => {
   ({ processEmailOutbox } = await import("@/server/email/outbox"));
   ({ decryptJson } = await import("@/lib/security/crypto"));
   ({ getServerEnvironment: getEnvironment } = await import("@/lib/env"));
+  ({ disconnectPrismaForTests } = await import("@/lib/db"));
   fixtureHash = await hashPassword(temporaryPassword);
 
   await pool.query(`
@@ -128,6 +130,7 @@ afterAll(async () => {
       email_outbox, audit_logs, role_permissions, permissions, departments, roles
     RESTART IDENTITY CASCADE
   `);
+  await disconnectPrismaForTests();
   await pool.end();
   const root = path.resolve(process.cwd(), "storage", getEnvironment().EMAIL_SINK_ROOT);
   if (root.startsWith(path.resolve(process.cwd(), "storage") + path.sep)) {

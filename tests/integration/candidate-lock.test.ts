@@ -19,6 +19,7 @@ let lockCandidate: typeof import("@/server/candidates/lock").lockCandidate;
 let unlockCandidate: typeof import("@/server/candidates/lock").unlockCandidate;
 let CandidateLockError: typeof import("@/server/candidates/lock").CandidateLockError;
 let updateCandidatePlacement: typeof import("@/server/candidates/placement").updateCandidatePlacement;
+let disconnectPrismaForTests: typeof import("@/lib/db").disconnectPrismaForTests;
 
 function headers(): Headers {
   return new Headers({ "User-Agent": "Phase6Integration/1.0", "X-Forwarded-For": "203.0.113.6" });
@@ -45,6 +46,7 @@ async function setPeriod(status: "OPEN" | "CLOSED" | "ARCHIVED", allowUnlock: bo
 beforeAll(async () => {
   ({ lockCandidate, unlockCandidate, CandidateLockError } = await import("@/server/candidates/lock"));
   ({ updateCandidatePlacement } = await import("@/server/candidates/placement"));
+  ({ disconnectPrismaForTests } = await import("@/lib/db"));
 
   await pool.query(`
     TRUNCATE TABLE
@@ -87,6 +89,7 @@ afterAll(async () => {
       study_programs, recruitment_periods, users, departments, audit_logs, roles
     RESTART IDENTITY CASCADE
   `);
+  await disconnectPrismaForTests();
   await pool.end();
 });
 

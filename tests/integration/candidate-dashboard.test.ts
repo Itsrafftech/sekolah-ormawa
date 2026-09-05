@@ -42,6 +42,7 @@ let updateDepartmentNote: typeof import("@/server/candidates/notes").updateDepar
 let softDeleteDepartmentNote: typeof import("@/server/candidates/notes").softDeleteDepartmentNote;
 let listDepartmentNotes: typeof import("@/server/candidates/notes").listDepartmentNotes;
 let getPrivateStorage: typeof import("@/server/storage/private-storage").getPrivateStorage;
+let disconnectPrismaForTests: typeof import("@/lib/db").disconnectPrismaForTests;
 
 function headers(): Headers {
   return new Headers({ "User-Agent": "Phase5Integration/1.0", "X-Forwarded-For": "203.0.113.5" });
@@ -70,6 +71,7 @@ beforeAll(async () => {
   ({ createDepartmentNote, updateDepartmentNote, softDeleteDepartmentNote, listDepartmentNotes } =
     await import("@/server/candidates/notes"));
   ({ getPrivateStorage } = await import("@/server/storage/private-storage"));
+  ({ disconnectPrismaForTests } = await import("@/lib/db"));
 
   await pool.query(`
     TRUNCATE TABLE
@@ -173,6 +175,7 @@ afterAll(async () => {
       period_departments, users, departments, audit_logs, roles
     RESTART IDENTITY CASCADE
   `);
+  await disconnectPrismaForTests();
   await pool.end();
 });
 

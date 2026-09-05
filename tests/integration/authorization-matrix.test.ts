@@ -29,6 +29,7 @@ let overridePOST: typeof import("@/app/api/admin/candidates/[id]/override/route"
 let broadcastPreviewPOST: typeof import("@/app/api/admin/broadcast/preview/route").POST;
 let accountsGET: typeof import("@/app/api/admin/accounts/route").GET;
 let periodsGET: typeof import("@/app/api/admin/periods/route").GET;
+let disconnectPrismaForTests: typeof import("@/lib/db").disconnectPrismaForTests;
 
 const password = "Synthetic-AuthzMatrix-Passphrase-63!";
 
@@ -69,6 +70,7 @@ beforeAll(async () => {
   ({ POST: broadcastPreviewPOST } = await import("@/app/api/admin/broadcast/preview/route"));
   ({ GET: accountsGET } = await import("@/app/api/admin/accounts/route"));
   ({ GET: periodsGET } = await import("@/app/api/admin/periods/route"));
+  ({ disconnectPrismaForTests } = await import("@/lib/db"));
 
   await pool.query(`
     TRUNCATE TABLE
@@ -135,6 +137,7 @@ afterAll(async () => {
       sessions, accounts, users, departments, audit_logs, auth_rate_limits, roles
     RESTART IDENTITY CASCADE
   `);
+  await disconnectPrismaForTests();
   await pool.end();
 });
 

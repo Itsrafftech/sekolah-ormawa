@@ -52,13 +52,20 @@ export async function listDeletedCandidates(): Promise<DeletedCandidateItem[]> {
   const candidates = await prisma.candidate.findMany({
     where: { deletedAt: { not: null } },
     orderBy: { deletedAt: "desc" },
-    select: { id: true, name: true, registrationNumber: true, deletedAt: true },
+    select: {
+      id: true,
+      name: true,
+      registrationNumber: true,
+      deletedAt: true,
+      selectionDecision: { select: { status: true } },
+    },
   });
   return candidates.map((candidate) => ({
     id: candidate.id,
     name: candidate.name,
     registrationNumber: candidate.registrationNumber,
     deletedAt: candidate.deletedAt!.toISOString(),
+    eliminated: candidate.selectionDecision?.status === "ELIMINATED",
   }));
 }
 

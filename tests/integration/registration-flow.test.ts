@@ -36,11 +36,13 @@ let cleanupOrphanUploads: typeof import("@/server/registration/uploads").cleanup
 let submitRegistration: typeof import("@/server/registration/submit").submitRegistration;
 let getRegistrationConfirmation: typeof import("@/server/registration/submit").getRegistrationConfirmation;
 let processEmailOutbox: typeof import("@/server/email/outbox").processEmailOutbox;
+let disconnectPrismaForTests: typeof import("@/lib/db").disconnectPrismaForTests;
 
 beforeAll(async () => {
   ({ createPrivateUpload, cleanupOrphanUploads } = await import("@/server/registration/uploads"));
   ({ submitRegistration, getRegistrationConfirmation } = await import("@/server/registration/submit"));
   ({ processEmailOutbox } = await import("@/server/email/outbox"));
+  ({ disconnectPrismaForTests } = await import("@/lib/db"));
 
   await pool.query(`
     TRUNCATE TABLE
@@ -88,6 +90,7 @@ afterAll(async () => {
       period_departments, study_programs, recruitment_periods, departments
     RESTART IDENTITY CASCADE
   `);
+  await disconnectPrismaForTests();
   await pool.end();
 });
 

@@ -5,7 +5,10 @@ import { ArrowLeft, FileText, Link as LinkIcon, Lock } from "lucide-react";
 import { DangerZone } from "@/components/admin/danger-zone";
 import { LockPanel } from "@/components/admin/lock-panel";
 import { NotesPanel } from "@/components/admin/notes-panel";
+import { SelectionAdminPanel } from "@/components/admin/selection-admin-panel";
+import { SelectionPanel } from "@/components/admin/selection-panel";
 import { StatusPill } from "@/components/ui/status-pill";
+import { SELECTION_STATUS_LABEL, SELECTION_STATUS_TONE } from "@/features/candidates/selection-status-labels";
 import { requireAdminPage } from "@/server/auth/page-guard";
 import { getCandidateDetail } from "@/server/candidates/detail";
 import { listDepartmentNotes } from "@/server/candidates/notes";
@@ -49,7 +52,11 @@ export default async function CandidateDetailPage({ params, searchParams }: Page
           <h1>{candidate.name}</h1>
           <p>{candidate.nim} &middot; {candidate.studyProgramName} &middot; {candidate.className}</p>
         </div>
-        {candidate.activeLock ? (
+        {candidate.selection ? (
+          <StatusPill tone={SELECTION_STATUS_TONE[candidate.selection.status]}>
+            {SELECTION_STATUS_LABEL[candidate.selection.status]}
+          </StatusPill>
+        ) : candidate.activeLock ? (
           <StatusPill tone="warning"><Lock aria-hidden="true" size={13} /> Terkunci oleh {candidate.activeLock.departmentName}</StatusPill>
         ) : (
           <StatusPill tone="ready">Tersedia</StatusPill>
@@ -122,16 +129,29 @@ export default async function CandidateDetailPage({ params, searchParams }: Page
         ) : null}
       </section>
 
-      <LockPanel
-        key={`${candidate.status}-${candidate.activeLock?.id ?? "none"}`}
-        candidateId={candidate.id}
-        departmentId={departmentId}
-        status={candidate.status}
-        activeLock={candidate.activeLock}
-        placement={candidate.placement}
-      />
+      {candidate.selection ? (
+        <SelectionPanel
+          key={`${candidate.selection.status}-${departmentId}`}
+          candidateId={candidate.id}
+          departmentId={departmentId}
+          selection={candidate.selection}
+        />
+      ) : (
+        <LockPanel
+          key={`${candidate.status}-${candidate.activeLock?.id ?? "none"}`}
+          candidateId={candidate.id}
+          departmentId={departmentId}
+          status={candidate.status}
+          activeLock={candidate.activeLock}
+          placement={candidate.placement}
+        />
+      )}
 
       <NotesPanel candidateId={candidate.id} departmentId={departmentId} initialNotes={notes} currentUserId={context.userId} />
+
+      {context.role === "SUPER_ADMIN" && candidate.selection ? (
+        <SelectionAdminPanel candidateId={candidate.id} status={candidate.selection.status} />
+      ) : null}
 
       {context.role === "SUPER_ADMIN" && candidate.status !== "LOCKED" ? (
         <DangerZone candidateId={candidate.id} />

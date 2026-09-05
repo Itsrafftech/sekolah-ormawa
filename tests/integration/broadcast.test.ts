@@ -17,6 +17,7 @@ const superAdminId = "83500000-0000-4000-8000-000000000001";
 let previewBroadcast: typeof import("@/server/broadcast/broadcast").previewBroadcast;
 let sendBroadcast: typeof import("@/server/broadcast/broadcast").sendBroadcast;
 let BroadcastError: typeof import("@/server/broadcast/broadcast").BroadcastError;
+let disconnectPrismaForTests: typeof import("@/lib/db").disconnectPrismaForTests;
 
 function headers(): Headers {
   return new Headers({ "User-Agent": "Phase7Integration/1.0", "X-Forwarded-For": "203.0.113.10" });
@@ -38,6 +39,7 @@ async function insertCandidate(id: string, departmentId: string): Promise<void> 
 
 beforeAll(async () => {
   ({ previewBroadcast, sendBroadcast, BroadcastError } = await import("@/server/broadcast/broadcast"));
+  ({ disconnectPrismaForTests } = await import("@/lib/db"));
 
   await pool.query(`
     TRUNCATE TABLE
@@ -73,6 +75,7 @@ afterAll(async () => {
       recruitment_periods, departments, audit_logs
     RESTART IDENTITY CASCADE
   `);
+  await disconnectPrismaForTests();
   await pool.end();
 });
 

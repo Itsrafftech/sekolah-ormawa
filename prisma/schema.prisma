@@ -1,11 +1,531 @@
 generator client {
   provider            = "prisma-client"
   output              = "../src/generated/prisma"
+  previewFeatures     = ["partialIndexes"]
   importFileExtension = "ts"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+model Role {
+  code        String           @id
+  name        String
+  description String
+  isSystem    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  permissions RolePermission[]
+  users       User[]
+
+  @@map("roles")
+}
+
+model Permission {
+  code        String           @id
+  name        String
+  description String
+  module      String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleCode       String
+  permissionCode String
+  createdAt      DateTime   @default(now())
+  permission     Permission @relation(fields: [permissionCode], references: [code], onDelete: Cascade)
+  role           Role       @relation(fields: [roleCode], references: [code], onDelete: Cascade)
+
+  @@id([roleCode, permissionCode])
+  @@map("role_permissions")
+}
+
+model Department {
+  id                String               @id @default(uuid())
+  code              String               @unique
+  name              String
+  shortName         String
+  unitType          UnitType
+  description       String?
+  sortOrder         Int                  @default(0)
+  isActive          Boolean              @default(true)
+  configStatus      ConfigStatus         @default(DRAFT)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  candidateChoices  CandidateChoice[]
+  locks             CandidateLock[]
+  placements        CandidatePlacement[]
+  notes             DepartmentNote[]
+  periodDepartments PeriodDepartment[]
+  users             User[]
+  selectionsAsPrimary   SelectionDecision[] @relation("SelectionPrimary")
+  selectionsAsSecondary SelectionDecision[] @relation("SelectionSecondary")
+
+  @@index([isActive, sortOrder])
+  @@map("departments")
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model User {
+  id                         String               @id
+  name                       String
+  email                      String               @unique
+  emailVerified              Boolean              @default(false)
+  image                      String?
+  role                       String               @default("DEPT_PJ")
+  banned                     Boolean              @default(false)
+  banReason                  String?
+  banExpires                 DateTime?
+  mustChangePassword         Boolean              @default(true)
+  temporaryPasswordExpiresAt DateTime?
+  departmentId               String?
+  lastLoginAt                DateTime?
+  passwordChangedAt          DateTime?
+  createdAt                  DateTime             @default(now())
+  updatedAt                  DateTime             @updatedAt
+  isActive                   Boolean              @default(true)
+  sessionVersion             Int                  @default(0)
+  accounts                   Account[]
+  passwordResetTokens        PasswordResetToken[]
+  sessions                   Session[]
+  department                 Department?          @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  appRole                    Role                 @relation(fields: [role], references: [code])
+
+  @@index([departmentId])
+  @@index([role, banned])
+  @@map("users")
+}
+
+model Session {
+  id                String   @id
+  expiresAt         DateTime
+  token             String   @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  ipAddress         String?
+  userAgent         String?
+  userId            String
+  impersonatedBy    String?
+  absoluteExpiresAt DateTime
+  sessionVersion    Int      @default(0)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sessionVersion])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+
+  @@index([identifier])
+  @@map("verifications")
+}
+
+model RateLimit {
+  id          String @id
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+
+  @@map("rate_limits")
+}
+
+model AuthRateLimit {
+  id              String   @id @default(uuid())
+  scope           String
+  keyHash         String
+  count           Int      @default(0)
+  windowStartedAt DateTime
+  updatedAt       DateTime @updatedAt
+
+  @@unique([scope, keyHash])
+  @@index([updatedAt])
+  @@map("auth_rate_limits")
+}
+
+model PasswordResetToken {
+  id              String    @id @default(uuid())
+  userId          String
+  tokenHash       String    @unique
+  expiresAt       DateTime
+  usedAt          DateTime?
+  requestedIpHash String?
+  createdAt       DateTime  @default(now())
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt, expiresAt])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
+model RecruitmentPeriod {
+  id                   String             @id @default(uuid())
+  code                 String             @unique
+  name                 String
+  status               PeriodStatus       @default(DRAFT)
+  configStatus         ConfigStatus       @default(DRAFT)
+  cohortCode           Int                @default(63)
+  entryYear            Int?
+  registrationPrefix   String?
+  registrationSequence Int                @default(0)
+  opensAt              DateTime?
+  closesAt             DateTime?
+  choice2Required      Boolean            @default(true)
+  allowUnlock          Boolean            @default(false)
+  consentVersion       String?
+  retentionDays        Int?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  candidates           Candidate[]
+  uploads              FileUpload[]
+  departments          PeriodDepartment[]
+  selectionDecisions   SelectionDecision[]
+
+  @@index([status, opensAt, closesAt])
+  @@map("recruitment_periods")
+}
+
+model PeriodDepartment {
+  id                  String            @id @default(uuid())
+  periodId            String
+  departmentId        String
+  acceptsApplications Boolean           @default(false)
+  quota               Int?
+  contributionPrompt  String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  department          Department        @relation(fields: [departmentId], references: [id])
+  period              RecruitmentPeriod @relation(fields: [periodId], references: [id])
+
+  @@unique([periodId, departmentId])
+  @@index([periodId, acceptsApplications])
+  @@map("period_departments")
+}
+
+model StudyProgram {
+  id           String       @id @default(uuid())
+  code         String       @unique
+  name         String
+  configStatus ConfigStatus @default(DRAFT)
+  isActive     Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  candidates   Candidate[]
+
+  @@map("study_programs")
+}
+
+model Candidate {
+  id                 String                     @id @default(uuid())
+  periodId           String
+  registrationNumber String?                    @unique
+  name               String
+  nim                String
+  normalizedNim      String
+  cohortCode         Int
+  entryYear          Int?
+  className          String
+  studyProgramId     String
+  phone              String
+  email              String
+  normalizedEmail    String
+  gpa                Decimal?                   @db.Decimal(3, 2)
+  domicile           String
+  essayOrgExperience String
+  essayContribution  String
+  essayBalance       String
+  status             CandidateStatus            @default(SUBMITTED)
+  consentVersion     String?
+  consentedAt        DateTime?
+  submittedAt        DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  deletedAt          DateTime?
+  version            Int                        @default(0)
+  choices            CandidateChoice[]
+  // db pull (Prisma 7.9.1) mis-infers this as a to-one relation because
+  // candidate_locks_one_active_per_candidate_key is a PARTIAL unique index
+  // (candidateId UNIQUE WHERE unlockedAt IS NULL) - it correctly models
+  // the partial constraint on CandidateLock.candidateId below, but wrongly
+  // treats that as proof of full 1:1 cardinality for the back-relation. A
+  // candidate genuinely accumulates multiple lock rows over time (lock ->
+  // unlock -> re-lock, or override); only ONE may be active at once. Kept
+  // as an array - do not let a future `prisma db pull` silently flip this
+  // back to `CandidateLock?`.
+  locks              CandidateLock[]
+  placement          CandidatePlacement?
+  selectionDecision  SelectionDecision?
+  portfolios         CandidatePortfolio[]
+  period             RecruitmentPeriod          @relation(fields: [periodId], references: [id])
+  studyProgram       StudyProgram               @relation(fields: [studyProgramId], references: [id])
+  notes              DepartmentNote[]
+  uploads            FileUpload[]
+  confirmations      RegistrationConfirmation[]
+
+  @@unique([periodId, normalizedNim])
+  @@unique([periodId, normalizedEmail])
+  @@index([periodId, status, submittedAt, id])
+  @@index([deletedAt])
+  @@map("candidates")
+}
+
+model CandidateChoice {
+  id           String     @id @default(uuid())
+  candidateId  String
+  departmentId String
+  rank         ChoiceRank
+  motivation   String
+  contribution String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  candidate    Candidate  @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  @@unique([candidateId, rank])
+  @@unique([candidateId, departmentId])
+  @@index([departmentId, rank, candidateId])
+  @@map("candidate_choices")
+}
+
+model FileUpload {
+  id               String              @id @default(uuid())
+  candidateId      String?
+  periodId         String
+  kind             UploadKind
+  status           UploadStatus        @default(PENDING)
+  bucket           String
+  objectKey        String              @unique
+  originalFileName String
+  declaredMimeType String
+  detectedMimeType String?
+  sizeBytes        Int
+  checksumSha256   String?
+  ownerTokenHash   String
+  createdAt        DateTime            @default(now())
+  uploadedAt       DateTime?
+  finalizedAt      DateTime?
+  expiresAt        DateTime
+  portfolio        CandidatePortfolio?
+  candidate        Candidate?          @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  period           RecruitmentPeriod   @relation(fields: [periodId], references: [id])
+
+  @@index([periodId, status, expiresAt])
+  @@index([candidateId, kind])
+  @@map("file_uploads")
+}
+
+model CandidatePortfolio {
+  id            String            @id @default(uuid())
+  candidateId   String
+  type          PortfolioItemType
+  fileUploadId  String?           @unique
+  externalUrl   String?
+  title         String?
+  description   String?
+  applicantRole String?
+  creationYear  Int?
+  sortOrder     Int               @default(0)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  candidate     Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  file          FileUpload?       @relation(fields: [fileUploadId], references: [id], onDelete: Restrict)
+
+  @@index([candidateId, sortOrder])
+  @@map("candidate_portfolios")
+}
+
+model RegistrationConfirmation {
+  id          String    @id @default(uuid())
+  candidateId String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("registration_confirmations")
+}
+
+model DepartmentNote {
+  id           String     @id @default(uuid())
+  candidateId  String
+  departmentId String
+  body         String
+  createdById  String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+  candidate    Candidate  @relation(fields: [candidateId], references: [id])
+  department   Department @relation(fields: [departmentId], references: [id])
+
+  @@index([candidateId, departmentId, deletedAt])
+  @@map("department_notes")
+}
+
+model CandidateLock {
+  id               String     @id @default(uuid())
+  candidateId      String     @unique(map: "candidate_locks_one_active_per_candidate_key", where: raw("(\"unlockedAt\" IS NULL)"))
+  departmentId     String
+  lockedByUserId   String
+  lockedAt         DateTime   @default(now())
+  unlockedAt       DateTime?
+  unlockedByUserId String?
+  lockReason       String?
+  unlockReason     String?
+  overrideReason   String?
+  candidate        Candidate  @relation(fields: [candidateId], references: [id])
+  department       Department @relation(fields: [departmentId], references: [id])
+
+  @@index([candidateId, unlockedAt])
+  @@index([departmentId, unlockedAt])
+  @@map("candidate_locks")
+}
+
+/// Two-stage selection decision between a candidate's Pilihan 1 (primary)
+/// and Pilihan 2 (secondary) department PJ - replaces CandidateLock as the
+/// active claiming mechanism (CandidateLock/candidate_locks is kept,
+/// unused, for historical reference only - not written to going forward).
+/// One row per candidate (not a history table): p1/p2 fields are
+/// overwritten as the same decision progresses through its stages, not
+/// recreated. `@@unique([candidateId])` is therefore a plain unique, not
+/// a partial one like candidate_locks - a candidate has at most one
+/// decision ever (each candidate row already belongs to exactly one
+/// period, so "one active decision per candidate per period" reduces to
+/// "one decision per candidate").
+model SelectionDecision {
+  id                String          @id @default(uuid())
+  candidateId       String          @unique
+  periodId          String
+  primaryDeptId     String
+  secondaryDeptId   String
+  status            SelectionStatus @default(PENDING)
+  decidedByP1UserId String?
+  decidedByP2UserId String?
+  p1DecidedAt       DateTime?
+  p2DecidedAt       DateTime?
+  p1Reason          String?
+  p2Reason          String?
+  overrideByAdminId String?
+  overrideReason    String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  candidate     Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  period        RecruitmentPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  primaryDept   Department        @relation("SelectionPrimary", fields: [primaryDeptId], references: [id], onDelete: Restrict)
+  secondaryDept Department        @relation("SelectionSecondary", fields: [secondaryDeptId], references: [id], onDelete: Restrict)
+
+  @@index([primaryDeptId, status])
+  @@index([secondaryDeptId, status])
+  @@index([periodId, status])
+  @@map("selection_decisions")
+}
+
+model CandidatePlacement {
+  id           String          @id @default(uuid())
+  candidateId  String          @unique
+  departmentId String
+  status       PlacementStatus @default(UNDER_REVIEW)
+  mentorLabel  String?
+  reason       String?
+  placedAt     DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  candidate    Candidate       @relation(fields: [candidateId], references: [id])
+  department   Department      @relation(fields: [departmentId], references: [id])
+
+  @@index([departmentId, status])
+  @@map("candidate_placements")
+}
+
+model IdempotencyRecord {
+  id                       String            @id @default(uuid())
+  scope                    String
+  keyHash                  String
+  requestHash              String
+  status                   IdempotencyStatus @default(PROCESSING)
+  responseCode             Int?
+  responseBody             Json?
+  expiresAt                DateTime
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+  responseSecretCiphertext String?
+
+  @@unique([scope, keyHash])
+  @@index([expiresAt])
+  @@map("idempotency_records")
+}
+
+model AuditLog {
+  id           String      @id @default(uuid())
+  actorUserId  String?
+  action       AuditAction
+  entityType   String
+  entityId     String
+  departmentId String?
+  beforeJson   Json?
+  afterJson    Json?
+  reason       String?
+  requestId    String
+  ipHash       String?
+  userAgent    String?
+  createdAt    DateTime    @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([departmentId, createdAt])
+  @@map("audit_logs")
+}
+
+model EmailOutbox {
+  id               String            @id @default(uuid())
+  type             String
+  recipientHash    String
+  encryptedPayload String
+  status           EmailOutboxStatus @default(PENDING)
+  attemptCount     Int               @default(0)
+  maxAttempts      Int               @default(5)
+  nextAttemptAt    DateTime          @default(now())
+  lockedAt         DateTime?
+  sentAt           DateTime?
+  lastErrorCode    String?
+  idempotencyKey   String            @unique
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@map("email_outbox")
 }
 
 enum ConfigStatus {
@@ -93,6 +613,12 @@ enum AuditAction {
   PASSWORD_RESET_REQUEST
   AUTHORIZATION_DENIED
   FILE_VIEW
+  SELECTION_TAKE
+  SELECTION_HESITANT
+  SELECTION_FORWARD
+  SELECTION_ELIMINATE
+  SELECTION_RESET
+  SELECTION_RESTORE
 }
 
 enum PlacementStatus {
@@ -103,492 +629,12 @@ enum PlacementStatus {
   WITHDRAWN
 }
 
-model Role {
-  code        String   @id
-  name        String
-  description String
-  isSystem    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  users       User[]
-  permissions RolePermission[]
-
-  @@map("roles")
-}
-
-model Permission {
-  code        String   @id
-  name        String
-  description String
-  module      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  roles RolePermission[]
-
-  @@map("permissions")
-}
-
-model RolePermission {
-  roleCode       String
-  permissionCode String
-  createdAt      DateTime @default(now())
-
-  role       Role       @relation(fields: [roleCode], references: [code], onDelete: Cascade)
-  permission Permission @relation(fields: [permissionCode], references: [code], onDelete: Cascade)
-
-  @@id([roleCode, permissionCode])
-  @@map("role_permissions")
-}
-
-model Department {
-  id          String       @id @default(uuid())
-  code        String       @unique
-  name        String
-  shortName   String
-  unitType    UnitType
-  description String?
-  sortOrder   Int          @default(0)
-  isActive    Boolean      @default(true)
-  configStatus ConfigStatus @default(DRAFT)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-
-  users             User[]
-  periodDepartments PeriodDepartment[]
-  candidateChoices  CandidateChoice[]
-  notes              DepartmentNote[]
-  locks              CandidateLock[]
-  placements         CandidatePlacement[]
-
-  @@index([isActive, sortOrder])
-  @@map("departments")
-}
-
-model User {
-  id                         String    @id
-  name                       String
-  email                      String
-  emailVerified              Boolean   @default(false)
-  image                      String?
-  role                       String    @default("DEPT_PJ")
-  banned                     Boolean   @default(false)
-  isActive                   Boolean   @default(true)
-  banReason                  String?
-  banExpires                 DateTime?
-  mustChangePassword         Boolean   @default(true)
-  temporaryPasswordExpiresAt DateTime?
-  departmentId               String?
-  lastLoginAt                DateTime?
-  passwordChangedAt          DateTime?
-  sessionVersion             Int       @default(0)
-  createdAt                  DateTime  @default(now())
-  updatedAt                  DateTime  @updatedAt
-
-  appRole    Role        @relation(fields: [role], references: [code], onDelete: Restrict, onUpdate: Cascade)
-  department Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  sessions   Session[]
-  accounts   Account[]
-  passwordResetTokens PasswordResetToken[]
-
-  @@unique([email])
-  @@index([departmentId])
-  @@index([role, banned])
-  @@map("users")
-}
-
-model Session {
-  id             String   @id
-  expiresAt      DateTime
-  token          String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  ipAddress      String?
-  userAgent      String?
-  userId         String
-  impersonatedBy String?
-  absoluteExpiresAt DateTime
-  sessionVersion Int @default(0)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([token])
-  @@index([userId, sessionVersion])
-  @@index([expiresAt])
-  @@map("sessions")
-}
-
-model Account {
-  id                    String    @id
-  accountId             String
-  providerId            String
-  userId                String
-  accessToken           String?
-  refreshToken          String?
-  idToken               String?
-  accessTokenExpiresAt  DateTime?
-  refreshTokenExpiresAt DateTime?
-  scope                 String?
-  password              String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([providerId, accountId])
-  @@index([userId])
-  @@map("accounts")
-}
-
-model Verification {
-  id         String    @id
-  identifier String
-  value      String
-  expiresAt  DateTime
-  createdAt  DateTime? @default(now())
-  updatedAt  DateTime? @updatedAt
-
-  @@index([identifier])
-  @@map("verifications")
-}
-
-model RateLimit {
-  id          String @id
-  key         String @unique
-  count       Int
-  lastRequest BigInt
-
-  @@map("rate_limits")
-}
-
-model AuthRateLimit {
-  id              String   @id @default(uuid())
-  scope           String
-  keyHash         String
-  count           Int      @default(0)
-  windowStartedAt DateTime
-  updatedAt       DateTime @updatedAt
-
-  @@unique([scope, keyHash])
-  @@index([updatedAt])
-  @@map("auth_rate_limits")
-}
-
-model PasswordResetToken {
-  id              String    @id @default(uuid())
-  userId          String
-  tokenHash       String    @unique
-  expiresAt       DateTime
-  usedAt          DateTime?
-  requestedIpHash String?
-  createdAt       DateTime  @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, usedAt, expiresAt])
-  @@index([expiresAt])
-  @@map("password_reset_tokens")
-}
-
-model RecruitmentPeriod {
-  id                   String       @id @default(uuid())
-  code                 String       @unique
-  name                 String
-  status               PeriodStatus @default(DRAFT)
-  configStatus         ConfigStatus @default(DRAFT)
-  cohortCode           Int          @default(63)
-  entryYear            Int?
-  registrationPrefix   String?
-  registrationSequence Int          @default(0)
-  opensAt              DateTime?
-  closesAt             DateTime?
-  choice2Required      Boolean      @default(true)
-  allowUnlock          Boolean      @default(false)
-  consentVersion       String?
-  retentionDays        Int?
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
-
-  departments PeriodDepartment[]
-  candidates  Candidate[]
-  uploads     FileUpload[]
-
-  @@index([status, opensAt, closesAt])
-  @@map("recruitment_periods")
-}
-
-model PeriodDepartment {
-  id                  String   @id @default(uuid())
-  periodId            String
-  departmentId        String
-  acceptsApplications Boolean  @default(false)
-  quota               Int?
-  contributionPrompt  String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  period     RecruitmentPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
-  department Department        @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-
-  @@unique([periodId, departmentId])
-  @@index([periodId, acceptsApplications])
-  @@map("period_departments")
-}
-
-model StudyProgram {
-  id           String       @id @default(uuid())
-  code         String       @unique
-  name         String
-  configStatus ConfigStatus @default(DRAFT)
-  isActive     Boolean      @default(false)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-
-  candidates Candidate[]
-
-  @@map("study_programs")
-}
-
-model Candidate {
-  id                    String          @id @default(uuid())
-  periodId              String
-  registrationNumber    String?         @unique
-  name                  String
-  nim                   String
-  normalizedNim         String
-  cohortCode            Int
-  entryYear             Int?
-  className             String
-  studyProgramId        String
-  phone                  String
-  email                  String
-  normalizedEmail       String
-  // Nullable, not dropped: Angkatan 63 registers as new students before
-  // their first semester, so they have no GPA yet (product decision -
-  // see ADR-040). Kept nullable rather than removed to avoid a
-  // destructive migration against existing candidate rows.
-  gpa                    Decimal?        @db.Decimal(3, 2)
-  domicile               String
-  essayOrgExperience     String
-  essayContribution     String
-  essayBalance          String
-  status                 CandidateStatus @default(SUBMITTED)
-  consentVersion         String?
-  consentedAt            DateTime?
-  submittedAt            DateTime        @default(now())
-  updatedAt              DateTime        @updatedAt
-  deletedAt              DateTime?
-  version                Int             @default(0)
-
-  period      RecruitmentPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
-  studyProgram StudyProgram      @relation(fields: [studyProgramId], references: [id], onDelete: Restrict)
-  choices     CandidateChoice[]
-  uploads     FileUpload[]
-  portfolios  CandidatePortfolio[]
-  confirmations RegistrationConfirmation[]
-  notes       DepartmentNote[]
-  locks       CandidateLock[]
-  placement   CandidatePlacement?
-
-  @@unique([periodId, normalizedNim])
-  @@unique([periodId, normalizedEmail])
-  @@index([periodId, status, submittedAt, id])
-  @@index([deletedAt])
-  @@map("candidates")
-}
-
-model CandidateChoice {
-  id           String     @id @default(uuid())
-  candidateId  String
-  departmentId String
-  rank         ChoiceRank
-  motivation   String
-  contribution String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-
-  candidate  Candidate  @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-
-  @@unique([candidateId, rank])
-  @@unique([candidateId, departmentId])
-  @@index([departmentId, rank, candidateId])
-  @@map("candidate_choices")
-}
-
-model FileUpload {
-  id               String       @id @default(uuid())
-  candidateId      String?
-  periodId         String
-  kind             UploadKind
-  status           UploadStatus @default(PENDING)
-  bucket           String
-  objectKey        String       @unique
-  originalFileName String
-  declaredMimeType String
-  detectedMimeType String?
-  sizeBytes        Int
-  checksumSha256   String?
-  ownerTokenHash   String
-  createdAt        DateTime     @default(now())
-  uploadedAt       DateTime?
-  finalizedAt      DateTime?
-  expiresAt        DateTime
-
-  period      RecruitmentPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
-  candidate   Candidate?        @relation(fields: [candidateId], references: [id], onDelete: Restrict)
-  portfolio   CandidatePortfolio?
-
-  @@index([periodId, status, expiresAt])
-  @@index([candidateId, kind])
-  @@map("file_uploads")
-}
-
-model CandidatePortfolio {
-  id             String            @id @default(uuid())
-  candidateId    String
-  type           PortfolioItemType
-  fileUploadId   String?           @unique
-  externalUrl    String?
-  title          String?
-  description    String?
-  applicantRole  String?
-  creationYear   Int?
-  sortOrder      Int               @default(0)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-
-  candidate Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  file      FileUpload? @relation(fields: [fileUploadId], references: [id], onDelete: Restrict)
-
-  @@index([candidateId, sortOrder])
-  @@map("candidate_portfolios")
-}
-
-model RegistrationConfirmation {
-  id          String   @id @default(uuid())
-  candidateId String
-  tokenHash   String   @unique
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
-
-  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-
-  @@index([expiresAt])
-  @@map("registration_confirmations")
-}
-
-model DepartmentNote {
-  id           String   @id @default(uuid())
-  candidateId  String
-  departmentId String
-  body         String
-  createdById  String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  deletedAt    DateTime?
-
-  candidate  Candidate  @relation(fields: [candidateId], references: [id], onDelete: Restrict)
-  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-
-  @@index([candidateId, departmentId, deletedAt])
-  @@map("department_notes")
-}
-
-model CandidateLock {
-  id               String    @id @default(uuid())
-  candidateId      String
-  departmentId     String
-  lockedByUserId   String
-  lockedAt         DateTime  @default(now())
-  unlockedAt       DateTime?
-  unlockedByUserId String?
-  lockReason       String?
-  unlockReason     String?
-  overrideReason   String?
-
-  candidate  Candidate  @relation(fields: [candidateId], references: [id], onDelete: Restrict)
-  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-
-  @@index([candidateId, unlockedAt])
-  @@index([departmentId, unlockedAt])
-  @@map("candidate_locks")
-}
-
-model CandidatePlacement {
-  id             String          @id @default(uuid())
-  candidateId    String          @unique
-  departmentId   String
-  status         PlacementStatus @default(UNDER_REVIEW)
-  mentorLabel    String?
-  reason         String?
-  placedAt       DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-
-  candidate  Candidate  @relation(fields: [candidateId], references: [id], onDelete: Restrict)
-  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-
-  @@index([departmentId, status])
-  @@map("candidate_placements")
-}
-
-model IdempotencyRecord {
-  id           String            @id @default(uuid())
-  scope        String
-  keyHash      String
-  requestHash  String
-  status       IdempotencyStatus @default(PROCESSING)
-  responseCode Int?
-  responseBody Json?
-  responseSecretCiphertext String?
-  expiresAt    DateTime
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-
-  @@unique([scope, keyHash])
-  @@index([expiresAt])
-  @@map("idempotency_records")
-}
-
-model AuditLog {
-  id           String      @id @default(uuid())
-  actorUserId  String?
-  action       AuditAction
-  entityType   String
-  entityId     String
-  departmentId String?
-  beforeJson   Json?
-  afterJson    Json?
-  reason       String?
-  requestId    String
-  ipHash       String?
-  userAgent    String?
-  createdAt    DateTime    @default(now())
-
-  @@index([entityType, entityId, createdAt])
-  @@index([actorUserId, createdAt])
-  @@index([departmentId, createdAt])
-  @@map("audit_logs")
-}
-
-model EmailOutbox {
-  id             String            @id @default(uuid())
-  type           String
-  recipientHash  String
-  encryptedPayload String
-  status         EmailOutboxStatus @default(PENDING)
-  attemptCount   Int               @default(0)
-  maxAttempts    Int               @default(5)
-  nextAttemptAt  DateTime          @default(now())
-  lockedAt       DateTime?
-  sentAt         DateTime?
-  lastErrorCode  String?
-  idempotencyKey String            @unique
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-
-  @@index([status, nextAttemptAt])
-  @@map("email_outbox")
+enum SelectionStatus {
+  PENDING
+  TAKEN
+  HESITANT_P1
+  FORWARDED
+  TAKEN_P2
+  HESITANT_P2
+  ELIMINATED
 }

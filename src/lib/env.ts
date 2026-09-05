@@ -7,6 +7,35 @@ const serverEnvironmentSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   NEXT_PUBLIC_APP_URL: z.url().default("http://localhost:3000"),
   DATABASE_URL: z.string().min(1),
+  // Pool size for the shared Prisma client's node-postgres adapter
+  // (src/lib/db.ts). Default 20 is sized for the app/dev/prod runtime.
+  // Integration tests override this lower (vitest.integration.config.ts)
+  // so that each test file's Prisma client - which, absent an explicit
+  // prisma.$disconnect() in afterAll, can otherwise leave its pool's
+  // connections open past that file's run - can't alone consume a large
+  // share of Postgres's max_connections across a long sequential suite.
+  DATABASE_CONNECTION_LIMIT: numberFromEnvironment(20),
+  // How long prisma.$transaction() will queue for a free pooled connection
+  // before giving up (Prisma's own default is 2000ms - unset here, not a
+  // deliberate app choice). Kept as defense-in-depth for the integration
+  // test suite (vitest.integration.config.ts raises it) - not the actual
+  // fix for the 50/60-way concurrency race tests' flakiness under the full
+  // sequential suite; see PRISMA_TRANSACTION_TIMEOUT_MS below and
+  // DECISIONS.md ADR-042 for the real root cause and fix.
+  DATABASE_TRANSACTION_MAX_WAIT_MS: numberFromEnvironment(2000),
+  // How long prisma.$transaction()'s BODY (not connection acquisition -
+  // see DATABASE_TRANSACTION_MAX_WAIT_MS above) is allowed to run before
+  // Prisma cancels it (P2028). lock.ts/selection.ts's $transaction calls
+  // read this instead of a hardcoded literal specifically so the
+  // integration test suite can raise it without touching those files'
+  // logic. Default 15000ms matches this app's original/production value
+  // (ADR-042); the integration test suite overrides it to 30000ms
+  // (vitest.integration.config.ts) because 50-60 transactions serialized
+  // on one contended row apparently need more than 15s to fully drain
+  // their Postgres row-lock queue once enough prior I/O has accumulated
+  // in a long sequential run under this environment's Docker Desktop/
+  // Windows storage layer - see ADR-042 for the full diagnosis.
+  PRISMA_TRANSACTION_TIMEOUT_MS: numberFromEnvironment(15000),
   AUTH_SECRET: z.string().min(32),
   SESSION_COOKIE_NAME: z.string().min(1).default("sekolah_session"),
   SESSION_MAX_AGE_SECONDS: numberFromEnvironment(900),

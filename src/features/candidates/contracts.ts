@@ -1,4 +1,16 @@
+import type { SelectionStatusValue } from "@/features/candidates/selection-contracts";
+
+// "LOCKED" is a legacy key name (candidate_locks era) kept to avoid a wide
+// rename - its meaning is now "Diterima Birdep ini" (accepted via the
+// selection decision system: TAKEN as Pilihan 1, or TAKEN_P2 as Pilihan 2).
 export type CandidateSegment = "PRIMARY" | "SECONDARY" | "LOCKED";
+
+export type SelectionRole = "P1" | "P2";
+
+export type CandidateSelectionInfo = {
+  status: SelectionStatusValue;
+  role: SelectionRole;
+};
 
 export const CANDIDATE_SORT_KEYS = [
   "submittedAt_asc",
@@ -27,6 +39,7 @@ export type CandidateListItem = {
   rank: "PRIMARY" | "SECONDARY";
   status: "SUBMITTED" | "LOCKED" | "WITHDRAWN" | "ARCHIVED";
   submittedAt: string;
+  selection: CandidateSelectionInfo | null;
 };
 
 export type CandidateListResult = {
@@ -96,6 +109,19 @@ export type CandidatePlacementSummary = {
   updatedAt: string;
 };
 
+export type CandidateSelectionDetail = {
+  status: SelectionStatusValue;
+  role: SelectionRole;
+  primaryDeptId: string;
+  primaryDeptName: string;
+  secondaryDeptId: string;
+  secondaryDeptName: string;
+  p1Reason: string | null;
+  p2Reason: string | null;
+  p1DecidedAt: string | null;
+  p2DecidedAt: string | null;
+};
+
 export type CandidateDetail = {
   id: string;
   registrationNumber: string | null;
@@ -116,6 +142,7 @@ export type CandidateDetail = {
   portfolios: CandidatePortfolioSummary[];
   activeLock: CandidateLockSummary | null;
   placement: CandidatePlacementSummary | null;
+  selection: CandidateSelectionDetail | null;
 };
 
 export type DepartmentNoteDto = {
