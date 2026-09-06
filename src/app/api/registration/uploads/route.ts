@@ -6,10 +6,9 @@ import {
   attachRegistrationOwner,
   ensureRegistrationOwner,
 } from "@/server/registration/owner";
-import { UploadValidationError } from "@/features/registration/file-validation";
+import { MAX_DOCUMENT_UPLOAD_BYTES, UploadValidationError } from "@/features/registration/file-validation";
 import { createPrivateUpload } from "@/server/registration/uploads";
 import { AuthServiceError } from "@/server/auth/errors";
-import { getServerEnvironment } from "@/lib/env";
 import { consumeAuthRateLimit } from "@/server/auth/rate-limit";
 import { assertValidCsrf, clientIpHash } from "@/server/auth/security";
 
@@ -17,7 +16,11 @@ import { assertValidCsrf, clientIpHash } from "@/server/auth/security";
 // itself, so legitimate uploads at the configured max size are not rejected.
 const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
 
-const uploadKinds = new Set<UploadKind>(["CV", "PHOTO", "STUDENT_CARD", "PORTFOLIO"]);
+// PORTFOLIO and BUDGET_PLAN deliberately excluded (Phase D - "Portofolio
+// via URL Google Drive", ADR-045): Medbrand/Badmedbrnd's portfolio and
+// Komanggar's RAB are no longer uploads - a request for either kind is
+// now rejected here as an invalid payload, same as any unrecognized kind.
+const uploadKinds = new Set<UploadKind>(["CV", "PHOTO", "STUDENT_CARD"]);
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,7 +55,12 @@ export async function POST(request: NextRequest) {
   // which by itself does not protect against a large-body memory
   // exhaustion attempt.
   const declaredLength = Number(request.headers.get("content-length") ?? "");
-  const maxAllowedBytes = getServerEnvironment().PORTFOLIO_MAX_FILE_BYTES + MULTIPART_OVERHEAD_BYTES;
+  // `kind` isn't known yet at this point (it's still inside the
+  // not-yet-parsed multipart body) - use the largest cap among the still-
+  // accepted kinds (CV/PHOTO/STUDENT_CARD) so none is falsely rejected
+  // here before file-validation ever gets to apply the kind-specific
+  // limit for real.
+  const maxAllowedBytes = MAX_DOCUMENT_UPLOAD_BYTES + MULTIPART_OVERHEAD_BYTES;
   if (Number.isFinite(declaredLength) && declaredLength > maxAllowedBytes) {
     return NextResponse.json({ error: "Ukuran file melebihi batas yang diizinkan." }, { status: 413 });
   }

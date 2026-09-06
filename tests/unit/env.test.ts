@@ -19,7 +19,7 @@ describe("server environment", () => {
     expect(environment.SESSION_IDLE_TIMEOUT_SECONDS).toBe(900);
     expect(environment.LOGIN_RATE_LIMIT_MAX_ATTEMPTS).toBe(5);
     expect(environment.REGISTRATION_SUBMISSION_ENABLED).toBe(false);
-    expect(environment.PORTFOLIO_MAX_FILES).toBe(5);
+    expect(environment.PORTFOLIO_URL_MAX_LENGTH).toBe(2048);
   });
 
   it("menolak auth secret yang terlalu pendek", () => {

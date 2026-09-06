@@ -95,8 +95,6 @@ export async function getRegistrationAvailability(
       motivationMinWords: environment.MOTIVATION_MIN_WORDS,
       essayMinWords: environment.ESSAY_MIN_WORDS,
       essayMaxWords: environment.ESSAY_MAX_WORDS,
-      portfolioMaxFiles: environment.PORTFOLIO_MAX_FILES,
-      portfolioMaxFileBytes: environment.PORTFOLIO_MAX_FILE_BYTES,
       portfolioUrlMaxLength: environment.PORTFOLIO_URL_MAX_LENGTH,
       draftTtlSeconds: environment.REGISTRATION_DRAFT_TTL_SECONDS,
       departments: period.departments.map(({ department }) => ({
@@ -104,7 +102,13 @@ export async function getRegistrationAvailability(
         code: department.code,
         name: department.name,
         shortName: department.shortName,
-        requiresPortfolio: department.code === "MEDBRAND",
+        // Phase C - "Field Khusus Per Birdep" (ADR-043): BADMEDBRND
+        // legislatif shares Medbrand eksekutif's exact portfolio field.
+        requiresPortfolio: department.code === "MEDBRAND" || department.code === "BADMEDBRND",
+        requiresMbti: department.code === "KOMIT",
+        requiresAdkesmahFocus: department.code === "ADKESMAH",
+        allowsBudgetPlan: department.code === "KOMANGG",
+        track: department.track,
       })),
       studyPrograms: studyPrograms.map((program) => ({
         id: program.id,

@@ -57,7 +57,7 @@ beforeAll(async () => {
 
   await pool.query(`
     TRUNCATE TABLE
-      registration_confirmations, candidate_portfolios, candidate_locks,
+      registration_confirmations, candidate_supplemental_data, candidate_locks,
       candidate_choices, file_uploads, candidates, email_outbox,
       idempotency_records, audit_logs, period_departments,
       study_programs, recruitment_periods, departments
@@ -93,7 +93,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await pool.query(`
     TRUNCATE TABLE
-      registration_confirmations, candidate_portfolios, candidate_choices,
+      registration_confirmations, candidate_supplemental_data, candidate_choices,
       file_uploads, candidates, email_outbox, idempotency_records, audit_logs,
       period_departments, study_programs, recruitment_periods, departments
     RESTART IDENTITY CASCADE
@@ -130,12 +130,12 @@ async function buildPayload(suffix: string): Promise<{ payload: RegistrationPayl
         { departmentId: departmentB, motivation },
       ],
       uploads: {
-        cv: { id: cv.id, kind: cv.kind, name: cv.originalFileName, sizeBytes: cv.sizeBytes, mimeType: cv.detectedMimeType ?? "application/pdf" },
-        photo: { id: photo.id, kind: photo.kind, name: photo.originalFileName, sizeBytes: photo.sizeBytes, mimeType: photo.detectedMimeType ?? "image/png" },
+        cv: { id: cv.id, kind: "CV", name: cv.originalFileName, sizeBytes: cv.sizeBytes, mimeType: cv.detectedMimeType ?? "application/pdf" },
+        photo: { id: photo.id, kind: "PHOTO", name: photo.originalFileName, sizeBytes: photo.sizeBytes, mimeType: photo.detectedMimeType ?? "image/png" },
         studentCard: null,
       },
       essays: { organizationExperience: "Sintetis", contribution: "Sintetis", academicBalance: "Sintetis" },
-      portfolio: [],
+      departmentFields: {},
       consent: { truthful: true, processing: true, version: "DRAFT-CONSENT-LOAD" },
     },
   };

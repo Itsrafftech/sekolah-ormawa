@@ -6,7 +6,7 @@ import { findScopedCandidateId } from "@/server/candidates/scope";
 
 function toUploadSummary(upload: {
   id: string;
-  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "PORTFOLIO";
+  kind: "CV" | "PHOTO" | "STUDENT_CARD";
   originalFileName: string;
   sizeBytes: number;
   detectedMimeType: string | null;
@@ -35,8 +35,14 @@ export async function getCandidateDetail(
         orderBy: { rank: "asc" },
         include: { department: { select: { id: true, name: true, code: true } } },
       },
+      // PORTFOLIO/BUDGET_PLAN excluded (retired upload kinds, Phase D -
+      // ADR-045) - kept here defensively in case a pre-Phase-D FileUpload
+      // row with either kind is still attached to an older candidate
+      // (the CandidatePortfolio link row was dropped by the migration,
+      // but the underlying FileUpload row itself was not), so it doesn't
+      // show up unlabeled in the generic document list below.
       uploads: {
-        where: { status: { in: ["VALIDATED", "FINALIZED"] }, kind: { not: "PORTFOLIO" } },
+        where: { status: { in: ["VALIDATED", "FINALIZED"] }, kind: { notIn: ["PORTFOLIO", "BUDGET_PLAN"] } },
         select: {
           id: true,
           kind: true,
@@ -45,20 +51,7 @@ export async function getCandidateDetail(
           detectedMimeType: true,
         },
       },
-      portfolios: {
-        orderBy: { sortOrder: "asc" },
-        include: {
-          file: {
-            select: {
-              id: true,
-              kind: true,
-              originalFileName: true,
-              sizeBytes: true,
-              detectedMimeType: true,
-            },
-          },
-        },
-      },
+      supplementalData: true,
       locks: {
         where: { unlockedAt: null },
         include: { department: { select: { name: true } } },
@@ -83,6 +76,44 @@ export async function getCandidateDetail(
       }))?.name ?? "Pengguna tidak dikenal"
     : null;
 
+  // Phase C - "Field Khusus Per Birdep" (ADR-043): visibility for each
+  // "Data Khusus Birdep" field keys off `departmentId` - the viewer's
+  // CURRENT department scope, already resolved by the caller to either a
+  // DEPT_PJ's own (fixed) department or whichever department Super Admin
+  // has switched into (ADR-028's department-switcher). A DEPT_PJ can
+  // therefore only ever see their own Birdep's field; Super Admin can see
+  // any one by switching - no separate "see everything at once" branch
+  // needed, this is the same scoping the rest of this function already
+  // relies on (findScopedCandidateId above).
+  //
+  // Phase D (ADR-045): portfolioUrl/budgetPlanUrl are plain strings on
+  // the same supplementalData row now (no more FileUpload lookup for
+  // either) - scoped to MEDBRAND/BADMEDBRND and KOMANGG respectively,
+  // same as komitMbti/adkesmahFocus are scoped to KOMIT/ADKESMAH.
+  const viewerDepartment = await prisma.department.findUnique({
+    where: { id: departmentId },
+    select: { code: true },
+  });
+  const viewerCode = viewerDepartment?.code ?? null;
+  const supplementalKomitMbti = viewerCode === "KOMIT" ? candidate.supplementalData?.komitMbti ?? null : null;
+  const supplementalAdkesmahFocus =
+    viewerCode === "ADKESMAH" ? candidate.supplementalData?.adkesmahFocus ?? null : null;
+  const supplementalPortfolioUrl =
+    viewerCode === "MEDBRAND" || viewerCode === "BADMEDBRND"
+      ? candidate.supplementalData?.portfolioUrl ?? null
+      : null;
+  const supplementalBudgetPlanUrl =
+    viewerCode === "KOMANGG" ? candidate.supplementalData?.budgetPlanUrl ?? null : null;
+  const supplemental =
+    supplementalKomitMbti || supplementalAdkesmahFocus || supplementalPortfolioUrl || supplementalBudgetPlanUrl
+      ? {
+          komitMbti: supplementalKomitMbti,
+          adkesmahFocus: supplementalAdkesmahFocus,
+          portfolioUrl: supplementalPortfolioUrl,
+          budgetPlanUrl: supplementalBudgetPlanUrl,
+        }
+      : null;
+
   return {
     id: candidate.id,
     registrationNumber: candidate.registrationNumber,
@@ -106,18 +137,15 @@ export async function getCandidateDetail(
       motivation: choice.motivation,
       contribution: choice.contribution,
     })),
-    uploads: candidate.uploads.map(toUploadSummary),
-    portfolios: candidate.portfolios.map((portfolio) => ({
-      id: portfolio.id,
-      type: portfolio.type,
-      title: portfolio.title,
-      description: portfolio.description,
-      applicantRole: portfolio.applicantRole,
-      creationYear: portfolio.creationYear,
-      sortOrder: portfolio.sortOrder,
-      externalUrl: portfolio.externalUrl,
-      file: portfolio.file ? toUploadSummary(portfolio.file) : null,
-    })),
+    // The `where: kind: { notIn: [...] }` clause above already excludes
+    // PORTFOLIO/BUDGET_PLAN at the query level - this filter exists only
+    // to narrow the TS type accordingly (Prisma's generated type for a
+    // `select`-ed enum column can't reflect a runtime WHERE filter).
+    uploads: candidate.uploads
+      .filter((upload): upload is typeof upload & { kind: "CV" | "PHOTO" | "STUDENT_CARD" } =>
+        upload.kind === "CV" || upload.kind === "PHOTO" || upload.kind === "STUDENT_CARD")
+      .map(toUploadSummary),
+    supplemental,
     activeLock: activeLock
       ? {
           id: activeLock.id,

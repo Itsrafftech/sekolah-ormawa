@@ -18,8 +18,8 @@ let disconnectPrismaForTests: typeof import("@/lib/db").disconnectPrismaForTests
 async function insertCandidate(id: string, name: string, status: "SUBMITTED" | "WITHDRAWN"): Promise<void> {
   await pool.query(
     `INSERT INTO candidates
-      (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgramId", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt")
-     VALUES ($1, $2, $3, $4, $5, $5, 63, 2026, 'Kelas E7', $6, '081200000001', $7, $7, 'Kota Fixture', 'Sintetis', 'Sintetis', 'Sintetis', $8, now(), now())`,
+      (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgramId", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", track)
+     VALUES ($1, $2, $3, $4, $5, $5, 63, 2026, 'Kelas E7', $6, '081200000001', $7, $7, 'Kota Fixture', 'Sintetis', 'Sintetis', 'Sintetis', $8, now(), now(), 'EXECUTIVE')`,
     [id, periodId, `REG-${id.slice(-6)}`, name, `NIM-${id.slice(-6)}`, studyProgramId, `${id}@example.test`, status],
   );
   await pool.query(

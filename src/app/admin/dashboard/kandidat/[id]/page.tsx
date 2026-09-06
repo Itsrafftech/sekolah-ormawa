@@ -24,7 +24,12 @@ const UPLOAD_LABEL: Record<string, string> = {
   CV: "CV",
   PHOTO: "Pas foto",
   STUDENT_CARD: "KTM",
-  PORTFOLIO: "Portofolio",
+};
+
+// Phase C - "Field Khusus Per Birdep" (ADR-043).
+const ADKESMAH_FOCUS_LABEL: Record<string, string> = {
+  ADVOCACY: "Advokasi Mahasiswa",
+  WELFARE: "Kesejahteraan Mahasiswa",
 };
 
 export default async function CandidateDetailPage({ params, searchParams }: PageProps) {
@@ -106,25 +111,43 @@ export default async function CandidateDetailPage({ params, searchParams }: Page
           </ul>
         </div>
 
-        {candidate.portfolios.length > 0 ? (
+        {candidate.supplemental ? (
           <div className="candidate-detail__card">
-            <h2>Portofolio</h2>
-            <ul className="candidate-detail__files">
-              {candidate.portfolios.map((item) => (
-                <li key={item.id}>
-                  {item.type === "FILE" && item.file ? (
-                    <a href={fileHref(item.file.id)} target="_blank" rel="noopener noreferrer">
-                      <FileText aria-hidden="true" size={15} /> {item.title ?? item.file.originalFileName}
-                    </a>
-                  ) : (
-                    <a href={item.externalUrl ?? "#"} target="_blank" rel="noopener noreferrer nofollow">
-                      <LinkIcon aria-hidden="true" size={15} /> {item.title ?? item.externalUrl}
-                    </a>
-                  )}
-                  {item.description ? <p>{item.description}</p> : null}
+            <h2>Data Khusus Birdep</h2>
+            <dl>
+              {candidate.supplemental.komitMbti ? (
+                <div><dt>Tipe MBTI</dt><dd>{candidate.supplemental.komitMbti}</dd></div>
+              ) : null}
+              {candidate.supplemental.adkesmahFocus ? (
+                <div>
+                  <dt>Bidang fokus</dt>
+                  <dd>{ADKESMAH_FOCUS_LABEL[candidate.supplemental.adkesmahFocus] ?? candidate.supplemental.adkesmahFocus}</dd>
+                </div>
+              ) : null}
+            </dl>
+            {/* Phase D - "Portofolio via URL Google Drive" (ADR-045): plain
+                links, not private-storage file downloads - the candidate
+                is instructed to set sharing to "Anyone with the link can
+                view" before submitting, so this can point straight at
+                Google Drive. */}
+            {candidate.supplemental.portfolioUrl ? (
+              <ul className="candidate-detail__files">
+                <li>
+                  <a href={candidate.supplemental.portfolioUrl} target="_blank" rel="noopener noreferrer nofollow">
+                    <LinkIcon aria-hidden="true" size={15} /> Portofolio: {candidate.supplemental.portfolioUrl}
+                  </a>
                 </li>
-              ))}
-            </ul>
+              </ul>
+            ) : null}
+            {candidate.supplemental.budgetPlanUrl ? (
+              <ul className="candidate-detail__files">
+                <li>
+                  <a href={candidate.supplemental.budgetPlanUrl} target="_blank" rel="noopener noreferrer nofollow">
+                    <LinkIcon aria-hidden="true" size={15} /> RAB: {candidate.supplemental.budgetPlanUrl}
+                  </a>
+                </li>
+              </ul>
+            ) : null}
           </div>
         ) : null}
       </section>

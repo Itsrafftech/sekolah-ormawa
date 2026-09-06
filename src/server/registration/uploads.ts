@@ -24,10 +24,7 @@ export async function createPrivateUpload(input: {
   storage?: PrivateStorageAdapter;
 }) {
   const environment = getServerEnvironment();
-  const { detectedMimeType, extension } = validateUploadFile({
-    ...input,
-    portfolioMaxBytes: environment.PORTFOLIO_MAX_FILE_BYTES,
-  });
+  const { detectedMimeType, extension } = validateUploadFile(input);
   const objectKey = `${input.periodId}/${randomUUID()}${extension}`;
   const storage = input.storage ?? getPrivateStorage();
   await storage.put(objectKey, input.bytes);

@@ -57,8 +57,14 @@ const serverEnvironmentSchema = z.object({
   MOTIVATION_MIN_WORDS: numberFromEnvironment(100),
   ESSAY_MIN_WORDS: numberFromEnvironment(1),
   ESSAY_MAX_WORDS: numberFromEnvironment(1000),
-  PORTFOLIO_MAX_FILES: numberFromEnvironment(5),
-  PORTFOLIO_MAX_FILE_BYTES: numberFromEnvironment(5242880),
+  // Phase D - "Portofolio via URL Google Drive" (ADR-045): PORTFOLIO_MAX_FILES
+  // and PORTFOLIO_MAX_FILE_BYTES (file-upload caps from Phase 3/C) and
+  // BUDGET_PLAN_MAX_FILE_BYTES (Phase C) were retired along with the
+  // in-app upload mechanism for Medbrand/Badmedbrnd/Komanggar - all three
+  // now use a plain Google Drive URL instead. PORTFOLIO_URL_MAX_LENGTH is
+  // kept and reused as the max length for that URL string (was previously
+  // the max length of an EXTERNAL_LINK portfolio item's URL - same kind
+  // of value, just the only kind now).
   PORTFOLIO_URL_MAX_LENGTH: numberFromEnvironment(2048),
   STORAGE_PRIVATE_ROOT: z.string().min(1).default("private"),
   STORAGE_SIGNED_URL_TTL_SECONDS: numberFromEnvironment(300),

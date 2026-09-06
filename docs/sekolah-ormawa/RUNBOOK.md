@@ -239,7 +239,8 @@ Sumber kebenaran nama variabel: `.env.example`. Kolom "Secret" menandai nilai ya
 | `REGISTRATION_SUBMISSION_ENABLED` | tidak | tetap `false` sampai seluruh checklist ini lolos; ini adalah kill switch utama |
 | `REGISTRATION_DRAFT_TTL_SECONDS`, `REGISTRATION_UPLOAD_TTL_SECONDS`, `REGISTRATION_CONFIRMATION_TTL_SECONDS` | tidak | |
 | `MOTIVATION_MIN_WORDS`, `ESSAY_MIN_WORDS`, `ESSAY_MAX_WORDS` | tidak | kebijakan konten, konfirmasi ke pemilik produk sebelum lock |
-| `PORTFOLIO_MAX_FILES`, `PORTFOLIO_MAX_FILE_BYTES`, `PORTFOLIO_URL_MAX_LENGTH` | tidak | |
+| `PORTFOLIO_MAX_FILES`, `PORTFOLIO_MAX_FILE_BYTES`, `PORTFOLIO_URL_MAX_LENGTH` | tidak | Phase C (ADR-043): `PORTFOLIO_MAX_FILE_BYTES` default naik ke 10MB, policy diperluas ke PDF/ZIP/gambar - dipakai bersama oleh Medbrand eksekutif dan Badan Media dan Branding legislatif |
+| `BUDGET_PLAN_MAX_FILE_BYTES` | tidak | Phase C (ADR-043): cap RAB Komisi Anggaran legislatif (opsional), default 5MB, PDF/XLS/XLSX |
 | `IP_HASH_SECRET` | ya | ≥16 karakter, beda dari `AUTH_SECRET` |
 | `MINIO_ENDPOINT` | tidak | `http://minio:9000` - nama service Docker internal, BUKAN URL publik (MinIO tidak diekspos ke internet, lihat `docker-compose.prod.yml`) |
 | `MINIO_REGION` | tidak | default `us-east-1`, MinIO tidak benar-benar memakai region tapi SDK S3 mewajibkan nilai |

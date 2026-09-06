@@ -6,7 +6,7 @@ import type {
 } from "@/features/registration/contracts";
 import {
   countWords,
-  isValidHttpsPortfolioUrl,
+  isValidGoogleDriveUrl,
   normalizeEmail,
   normalizeNim,
   normalizePhone,
@@ -16,6 +16,31 @@ import {
 const departmentA = "10000000-0000-4000-8000-000000000001";
 const departmentB = "10000000-0000-4000-8000-000000000002";
 const medbrand = "10000000-0000-4000-8000-000000000003";
+const komleg = "10000000-0000-4000-8000-000000000004";
+const badmedbrnd = "10000000-0000-4000-8000-000000000005";
+// Phase C - "Field Khusus Per Birdep" (ADR-043) fixtures.
+const komit = "10000000-0000-4000-8000-000000000006";
+const adkesmah = "10000000-0000-4000-8000-000000000007";
+const komanggar = "10000000-0000-4000-8000-000000000008";
+// Generic legislative department with none of the Phase C special
+// fields - keeps the plain "both choices legislative" happy-path test
+// below from tripping BADMEDBRND's (now-required) portfolio field.
+const kompeng = "10000000-0000-4000-8000-000000000009";
+
+function department(overrides: Partial<RegistrationFormConfig["departments"][number]>): RegistrationFormConfig["departments"][number] {
+  return {
+    id: overrides.id!,
+    code: overrides.code!,
+    name: overrides.name!,
+    shortName: overrides.shortName!,
+    requiresPortfolio: false,
+    requiresMbti: false,
+    requiresAdkesmahFocus: false,
+    allowsBudgetPlan: false,
+    track: "EXECUTIVE",
+    ...overrides,
+  };
+}
 
 const config: RegistrationFormConfig = {
   periodId: "20000000-0000-4000-8000-000000000001",
@@ -26,19 +51,26 @@ const config: RegistrationFormConfig = {
   motivationMinWords: 100,
   essayMinWords: 1,
   essayMaxWords: 1000,
-  portfolioMaxFiles: 5,
-  portfolioMaxFileBytes: 5 * 1024 * 1024,
   portfolioUrlMaxLength: 2048,
   draftTtlSeconds: 3600,
   departments: [
-    { id: departmentA, code: "A", name: "A", shortName: "A", requiresPortfolio: false },
-    { id: departmentB, code: "B", name: "B", shortName: "B", requiresPortfolio: false },
-    { id: medbrand, code: "MEDBRAND", name: "Media Branding", shortName: "Medbrand", requiresPortfolio: true },
+    department({ id: departmentA, code: "A", name: "A", shortName: "A" }),
+    department({ id: departmentB, code: "B", name: "B", shortName: "B" }),
+    department({ id: medbrand, code: "MEDBRAND", name: "Media Branding", shortName: "Medbrand", requiresPortfolio: true }),
+    department({ id: komleg, code: "KOMLEG", name: "Komisi Legislasi", shortName: "Komleg", track: "LEGISLATIVE" }),
+    department({ id: kompeng, code: "KOMPENG", name: "Komisi Pengawasan", shortName: "Kompeng", track: "LEGISLATIVE" }),
+    // BADMEDBRND shares Medbrand's exact same (now-required) portfolio
+    // field - ADR-043/ADR-045.
+    department({ id: badmedbrnd, code: "BADMEDBRND", name: "Badan Media dan Branding", shortName: "Badmedbrnd", requiresPortfolio: true, track: "LEGISLATIVE" }),
+    department({ id: komit, code: "KOMIT", name: "Biro Kolaborasi dan Kemitraan", shortName: "Komit", requiresMbti: true }),
+    department({ id: adkesmah, code: "ADKESMAH", name: "Advokasi dan Kesejahteraan Mahasiswa", shortName: "Adkesmah", requiresAdkesmahFocus: true }),
+    department({ id: komanggar, code: "KOMANGG", name: "Komisi Anggaran", shortName: "Komanggar", allowsBudgetPlan: true, track: "LEGISLATIVE" }),
   ],
   studyPrograms: [{ id: "30000000-0000-4000-8000-000000000001", code: "TEST", name: "Test", isDraft: true }],
 };
 
 const motivation = Array.from({ length: 100 }, (_, index) => `kata${index}`).join(" ");
+const driveUrl = "https://drive.google.com/file/d/fixture-id/view";
 
 function payload(): RegistrationPayload {
   return {
@@ -64,7 +96,7 @@ function payload(): RegistrationPayload {
       studentCard: null,
     },
     essays: { organizationExperience: "Sintetis", contribution: "Sintetis", academicBalance: "Sintetis" },
-    portfolio: [],
+    departmentFields: {},
     consent: { truthful: true, processing: true, version: config.consentVersion },
   };
 }
@@ -112,37 +144,168 @@ describe("registration validation", () => {
     }
   });
 
-  it("menolak Medbrand di Pilihan 1 atau Pilihan 2 tanpa portofolio", () => {
-    for (const index of [0, 1] as const) {
+  describe("Phase D - portofolio via URL Google Drive", () => {
+    it("mengenali URL Google Drive yang valid dan menolak host lain", () => {
+      expect(isValidGoogleDriveUrl("https://drive.google.com/file/d/abc/view", 2048)).toBe(true);
+      expect(isValidGoogleDriveUrl("http://drive.google.com/file/d/abc/view", 2048)).toBe(false);
+      expect(isValidGoogleDriveUrl("https://www.behance.net/fixture", 2048)).toBe(false);
+      // Deliberately NOT fooled by a naive "starts with" string check -
+      // a subdomain-suffix trick like this must still be rejected.
+      expect(isValidGoogleDriveUrl("https://drive.google.com.evil.test/x", 2048)).toBe(false);
+    });
+
+    it("menolak Medbrand di Pilihan 1 atau Pilihan 2 tanpa link Google Drive", () => {
+      for (const index of [0, 1] as const) {
+        const input = payload();
+        input.choices[index].departmentId = medbrand;
+        expect(validateRegistrationPayload(input, config)).toMatchObject({
+          success: false,
+          errors: { "departmentFields.portfolioUrl": expect.any(String) },
+        });
+      }
+    });
+
+    it("menerima Medbrand dengan link Google Drive valid, menolak link non-Drive", () => {
+      const invalid = payload();
+      invalid.choices[0].departmentId = medbrand;
+      invalid.departmentFields.portfolioUrl = "https://www.behance.net/fixture";
+      expect(validateRegistrationPayload(invalid, config)).toMatchObject({
+        success: false,
+        errors: { "departmentFields.portfolioUrl": expect.any(String) },
+      });
+
+      const valid = payload();
+      valid.choices[0].departmentId = medbrand;
+      valid.departmentFields.portfolioUrl = driveUrl;
+      expect(validateRegistrationPayload(valid, config).success).toBe(true);
+    });
+  });
+
+  describe("Phase A - jalur legislatif", () => {
+    it("menolak pasangan pilihan lintas jalur (satu eksekutif, satu legislatif)", () => {
       const input = payload();
-      input.choices[index].departmentId = medbrand;
+      input.choices[1].departmentId = komleg;
+      const result = validateRegistrationPayload(input, config);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errors["choices.1.departmentId"]).toMatch(/jalur/iu);
+      }
+    });
+
+    it("menerima pasangan pilihan yang keduanya legislatif", () => {
+      const input = payload();
+      input.choices = [
+        { departmentId: komleg, motivation },
+        { departmentId: kompeng, motivation },
+      ];
+      input.track = "LEGISLATIVE";
+      expect(validateRegistrationPayload(input, config).success).toBe(true);
+    });
+
+    it("menolak field track eksplisit yang tidak sesuai jalur Birdep yang dipilih", () => {
+      const input = payload();
+      input.choices = [
+        { departmentId: komleg, motivation },
+        { departmentId: badmedbrnd, motivation },
+      ];
+      input.track = "EXECUTIVE";
+      const result = validateRegistrationPayload(input, config);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errors.track).toBeTruthy();
+      }
+    });
+
+    it("menerima payload tanpa field track sama sekali (default EXECUTIVE tersirat, form lama)", () => {
+      const input = payload();
+      expect(input.track).toBeUndefined();
+      expect(validateRegistrationPayload(input, config).success).toBe(true);
+    });
+  });
+
+  describe("Phase C - field khusus per Birdep", () => {
+    it("menolak Komit tanpa MBTI, menerima dengan MBTI valid", () => {
+      const withoutMbti = payload();
+      withoutMbti.choices[0].departmentId = komit;
+      const rejected = validateRegistrationPayload(withoutMbti, config);
+      expect(rejected.success).toBe(false);
+      if (!rejected.success) expect(rejected.errors["departmentFields.komitMbti"]).toBeTruthy();
+
+      const withMbti = payload();
+      withMbti.choices[0].departmentId = komit;
+      withMbti.departmentFields.komitMbti = "intj";
+      const accepted = validateRegistrationPayload(withMbti, config);
+      expect(accepted.success).toBe(true);
+      // Uppercase normalization happens server-side too, not just in the UI.
+      if (accepted.success) expect(accepted.data.departmentFields.komitMbti).toBe("INTJ");
+    });
+
+    it("menolak format MBTI yang bukan kombinasi valid", () => {
+      const input = payload();
+      input.choices[0].departmentId = komit;
+      input.departmentFields.komitMbti = "ABCD";
+      const result = validateRegistrationPayload(input, config);
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.errors["departmentFields.komitMbti"]).toMatch(/MBTI/u);
+    });
+
+    it("menolak Adkesmah tanpa bidang fokus, menerima dengan salah satu pilihan", () => {
+      const withoutFocus = payload();
+      withoutFocus.choices[0].departmentId = adkesmah;
+      const rejected = validateRegistrationPayload(withoutFocus, config);
+      expect(rejected.success).toBe(false);
+      if (!rejected.success) expect(rejected.errors["departmentFields.adkesmahFocus"]).toBeTruthy();
+
+      const withFocus = payload();
+      withFocus.choices[0].departmentId = adkesmah;
+      withFocus.departmentFields.adkesmahFocus = "WELFARE";
+      expect(validateRegistrationPayload(withFocus, config).success).toBe(true);
+    });
+
+    it("menolak Badan Media dan Branding (legislatif) tanpa link portofolio - sama seperti Medbrand", () => {
+      const input = payload();
+      input.choices = [
+        { departmentId: komleg, motivation },
+        { departmentId: badmedbrnd, motivation },
+      ];
+      input.track = "LEGISLATIVE";
       expect(validateRegistrationPayload(input, config)).toMatchObject({
         success: false,
-        errors: { portfolio: expect.any(String) },
+        errors: { "departmentFields.portfolioUrl": expect.any(String) },
       });
-    }
-  });
+    });
 
-  it("menerima satu tautan HTTPS dan menolak HTTP tanpa mengambil URL", () => {
-    expect(isValidHttpsPortfolioUrl("https://www.behance.net/fixture", 2048)).toBe(true);
-    expect(isValidHttpsPortfolioUrl("http://localhost/fixture", 2048)).toBe(false);
-    const input = payload();
-    input.choices[0].departmentId = medbrand;
-    input.portfolio = [{ type: "EXTERNAL_LINK", externalUrl: "https://portfolio.example.test/karya", sortOrder: 0 }];
-    expect(validateRegistrationPayload(input, config).success).toBe(true);
-  });
+    it("menerima Komisi Anggaran tanpa RAB (opsional, nilai plus), menerima dengan link Google Drive valid", () => {
+      const withoutRab = payload();
+      withoutRab.choices = [
+        { departmentId: komleg, motivation },
+        { departmentId: komanggar, motivation },
+      ];
+      withoutRab.track = "LEGISLATIVE";
+      expect(validateRegistrationPayload(withoutRab, config).success).toBe(true);
 
-  it("menolak lebih dari lima file portofolio", () => {
-    const input = payload();
-    input.choices[1].departmentId = medbrand;
-    input.portfolio = Array.from({ length: 6 }, (_, index) => ({
-      type: "FILE" as const,
-      fileUploadId: `50000000-0000-4000-8000-00000000000${index}`,
-      sortOrder: index,
-    }));
-    expect(validateRegistrationPayload(input, config)).toMatchObject({
-      success: false,
-      errors: { portfolio: expect.any(String) },
+      const withRab = payload();
+      withRab.choices = [
+        { departmentId: komleg, motivation },
+        { departmentId: komanggar, motivation },
+      ];
+      withRab.track = "LEGISLATIVE";
+      withRab.departmentFields.budgetPlanUrl = driveUrl;
+      expect(validateRegistrationPayload(withRab, config).success).toBe(true);
+    });
+
+    it("menolak RAB Komisi Anggaran dengan link non-Google-Drive", () => {
+      const input = payload();
+      input.choices = [
+        { departmentId: komleg, motivation },
+        { departmentId: komanggar, motivation },
+      ];
+      input.track = "LEGISLATIVE";
+      input.departmentFields.budgetPlanUrl = "https://example.test/rab.pdf";
+      expect(validateRegistrationPayload(input, config)).toMatchObject({
+        success: false,
+        errors: { "departmentFields.budgetPlanUrl": expect.any(String) },
+      });
     });
   });
 });

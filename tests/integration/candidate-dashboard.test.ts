@@ -75,7 +75,7 @@ beforeAll(async () => {
 
   await pool.query(`
     TRUNCATE TABLE
-      department_notes, candidate_locks, candidate_portfolios, file_uploads,
+      department_notes, candidate_locks, candidate_supplemental_data, file_uploads,
       candidate_choices, candidates, study_programs, recruitment_periods,
       period_departments, users, departments, audit_logs, roles
     RESTART IDENTITY CASCADE
@@ -123,8 +123,8 @@ beforeAll(async () => {
   }) {
     await pool.query(
       `INSERT INTO candidates
-        (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgramId", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, $5, $5, 63, 2026, 'Kelas P5', $6, '081200000000', $7, $7, 'Kota Fixture', 'Sintetis', 'Sintetis', 'Sintetis', $8, $9, now())`,
+        (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgramId", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", track)
+       VALUES ($1, $2, $3, $4, $5, $5, 63, 2026, 'Kelas P5', $6, '081200000000', $7, $7, 'Kota Fixture', 'Sintetis', 'Sintetis', 'Sintetis', $8, $9, now(), 'EXECUTIVE')`,
       [input.id, periodId, `REG-${input.id.slice(-6)}`, input.name, `NIM-${input.id.slice(-6)}`, studyProgramId, `${input.id}@example.test`, input.status, input.submittedAt],
     );
     for (const choice of input.choices) {
@@ -170,7 +170,7 @@ afterAll(async () => {
   await getPrivateStorage().delete(`${periodId}/fixture-${uploadValidated}.pdf`);
   await pool.query(`
     TRUNCATE TABLE
-      department_notes, candidate_locks, candidate_portfolios, file_uploads,
+      department_notes, candidate_locks, candidate_supplemental_data, file_uploads,
       candidate_choices, candidates, study_programs, recruitment_periods,
       period_departments, users, departments, audit_logs, roles
     RESTART IDENTITY CASCADE

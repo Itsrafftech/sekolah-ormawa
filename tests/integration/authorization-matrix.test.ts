@@ -119,8 +119,8 @@ beforeAll(async () => {
 
   await pool.query(
     `INSERT INTO candidates
-      (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgramId", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt")
-     VALUES ($1, $2, 'REG-AUTHZ01', 'Kandidat Authz B', 'NIM-AUTHZ01', 'NIM-AUTHZ01', 63, 2026, 'Kelas AZ', $3, '081200000001', 'authz@example.test', 'authz@example.test', 'Kota Fixture', 'Sintetis', 'Sintetis', 'Sintetis', 'SUBMITTED', now(), now())`,
+      (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgramId", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", track)
+     VALUES ($1, $2, 'REG-AUTHZ01', 'Kandidat Authz B', 'NIM-AUTHZ01', 'NIM-AUTHZ01', 63, 2026, 'Kelas AZ', $3, '081200000001', 'authz@example.test', 'authz@example.test', 'Kota Fixture', 'Sintetis', 'Sintetis', 'Sintetis', 'SUBMITTED', now(), now(), 'EXECUTIVE')`,
     [candidateInB, periodId, studyProgramId],
   );
   await pool.query(

@@ -14,7 +14,6 @@ import {
   ArrowRight,
   Check,
   FileText,
-  Link2,
   Save,
   ShieldCheck,
   Trash2,
@@ -23,18 +22,23 @@ import {
 
 import {
   REGISTRATION_DRAFT_SCHEMA_VERSION,
-  type PortfolioInput,
+  type AdkesmahFocus,
+  type DepartmentsByTrack,
+  type PublicDepartmentOption,
   type RegistrationFormConfig,
   type RegistrationPayload,
+  type Track,
   type UploadReference,
 } from "@/features/registration/contracts";
 import {
   countWords,
+  isValidGoogleDriveUrl,
   validateRegistrationPayload,
   type FieldErrors,
 } from "@/features/registration/validation";
 
 const steps = [
+  ["00", "Jalur"],
   ["01", "Identitas"],
   ["02", "Pilihan Birdep"],
   ["03", "Dokumen"],
@@ -42,9 +46,52 @@ const steps = [
   ["05", "Review & Submit"],
 ] as const;
 
-type DraftPayload = Pick<RegistrationPayload, "identity" | "choices" | "essays"> & {
-  portfolio: PortfolioInput[];
+const TRACK_LABEL: Record<Track, string> = {
+  EXECUTIVE: "Eksekutif PKU",
+  LEGISLATIVE: "Legislatif PKU",
 };
+
+// Phase C - "Field Khusus Per Birdep" (ADR-043).
+const ADKESMAH_FOCUS_LABEL: Record<AdkesmahFocus, string> = {
+  ADVOCACY: "Advokasi Mahasiswa",
+  WELFARE: "Kesejahteraan Mahasiswa",
+};
+
+function allDepartments(departmentsByTrack: DepartmentsByTrack): PublicDepartmentOption[] {
+  return [...departmentsByTrack.executive, ...departmentsByTrack.legislative];
+}
+
+function departmentsForTrack(departmentsByTrack: DepartmentsByTrack, track: Track | undefined): PublicDepartmentOption[] {
+  if (track === "LEGISLATIVE") return departmentsByTrack.legislative;
+  if (track === "EXECUTIVE") return departmentsByTrack.executive;
+  return [];
+}
+
+// Same code-based special-casing submit.ts/config.ts use server-side
+// (department.code === "MEDBRAND") - GET /api/departments's leaner shape
+// (id/code/name/shortName only) doesn't carry a requiresPortfolio flag,
+// so Step 2/4 derive it here instead of trusting a field that isn't sent.
+// Phase C - "Field Khusus Per Birdep" (ADR-043): BADMEDBRND legislatif
+// shares Medbrand eksekutif's exact same portfolio field.
+function departmentRequiresPortfolio(department: PublicDepartmentOption | undefined): boolean {
+  return department?.code === "MEDBRAND" || department?.code === "BADMEDBRND";
+}
+
+// Phase C - "Field Khusus Per Birdep" (ADR-043): same code-based
+// special-casing as departmentRequiresPortfolio above.
+function departmentRequiresMbti(department: PublicDepartmentOption | undefined): boolean {
+  return department?.code === "KOMIT";
+}
+
+function departmentRequiresAdkesmahFocus(department: PublicDepartmentOption | undefined): boolean {
+  return department?.code === "ADKESMAH";
+}
+
+function departmentAllowsBudgetPlan(department: PublicDepartmentOption | undefined): boolean {
+  return department?.code === "KOMANGG";
+}
+
+type DraftPayload = Pick<RegistrationPayload, "identity" | "choices" | "essays" | "track" | "departmentFields">;
 
 type SavedDraft = {
   periodId: string;
@@ -58,6 +105,7 @@ type SavedDraft = {
 function emptyPayload(config: RegistrationFormConfig): RegistrationPayload {
   return {
     periodId: config.periodId,
+    track: undefined,
     identity: {
       name: "",
       nim: "",
@@ -75,7 +123,10 @@ function emptyPayload(config: RegistrationFormConfig): RegistrationPayload {
     ],
     uploads: { cv: null, photo: null, studentCard: null },
     essays: { organizationExperience: "", contribution: "", academicBalance: "" },
-    portfolio: [],
+    // Phase C - "Field Khusus Per Birdep": empty object, not per-field
+    // undefined literals - all keys stay optional/absent until the
+    // relevant Birdep is chosen and the candidate fills them in.
+    departmentFields: {},
     consent: { truthful: false, processing: false, version: config.consentVersion },
   };
 }
@@ -88,11 +139,10 @@ function fieldId(key: string): string {
   return `field-${key.replaceAll(".", "-")}`;
 }
 
-export function RegistrationForm({ config }: { config: RegistrationFormConfig }) {
+export function RegistrationForm({ config, departmentsByTrack }: { config: RegistrationFormConfig; departmentsByTrack: DepartmentsByTrack }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [payload, setPayload] = useState<RegistrationPayload>(() => emptyPayload(config));
-  const [portfolioUploads, setPortfolioUploads] = useState<UploadReference[]>([]);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [draftStatus, setDraftStatus] = useState("Memeriksa draft lokal...");
   const [draftReady, setDraftReady] = useState(false);
@@ -102,11 +152,27 @@ export function RegistrationForm({ config }: { config: RegistrationFormConfig })
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const latestPayload = useRef(payload);
 
+  const selectedDepartments = useMemo(
+    () => payload.choices.map((choice) =>
+      allDepartments(departmentsByTrack).find((department) => department.id === choice.departmentId)),
+    [departmentsByTrack, payload.choices],
+  );
   const requiresPortfolio = useMemo(
-    () => payload.choices.some((choice) =>
-      config.departments.find((department) => department.id === choice.departmentId)
-        ?.requiresPortfolio === true),
-    [config.departments, payload.choices],
+    () => selectedDepartments.some((department) => departmentRequiresPortfolio(department)),
+    [selectedDepartments],
+  );
+  // Phase C - "Field Khusus Per Birdep" (ADR-043).
+  const requiresMbti = useMemo(
+    () => selectedDepartments.some((department) => departmentRequiresMbti(department)),
+    [selectedDepartments],
+  );
+  const requiresAdkesmahFocus = useMemo(
+    () => selectedDepartments.some((department) => departmentRequiresAdkesmahFocus(department)),
+    [selectedDepartments],
+  );
+  const allowsBudgetPlan = useMemo(
+    () => selectedDepartments.some((department) => departmentAllowsBudgetPlan(department)),
+    [selectedDepartments],
   );
 
   useEffect(() => {
@@ -129,7 +195,6 @@ export function RegistrationForm({ config }: { config: RegistrationFormConfig })
             setPayload((current) => ({
               ...current,
               ...draft.data,
-              portfolio: draft.data.portfolio.filter((item) => item.type === "EXTERNAL_LINK"),
               consent: {
                 truthful: false,
                 processing: false,
@@ -158,10 +223,16 @@ export function RegistrationForm({ config }: { config: RegistrationFormConfig })
     const save = () => {
       const current = latestPayload.current;
       const data: DraftPayload = {
+        track: current.track,
         identity: current.identity,
         choices: current.choices,
         essays: current.essays,
-        portfolio: current.portfolio.filter((item) => item.type === "EXTERNAL_LINK"),
+        // Phase C - "Field Khusus Per Birdep", extended Phase D (ADR-045)
+        // with portfolioUrl/budgetPlanUrl: text values only ("Draft
+        // localStorage menyimpan nilai text/radio, tidak menyimpan file")
+        // - true of every departmentFields key, none of them ever
+        // reference a file/upload.
+        departmentFields: current.departmentFields,
       };
       const now = new Date();
       const draft: SavedDraft = {
@@ -196,7 +267,6 @@ export function RegistrationForm({ config }: { config: RegistrationFormConfig })
   function clearDraft() {
     window.localStorage.removeItem(draftStorageKey(config.periodId));
     setPayload(emptyPayload(config));
-    setPortfolioUploads([]);
     setFieldErrors({});
     setDraftStatus("Draft lokal dihapus");
     setStep(0);
@@ -205,6 +275,9 @@ export function RegistrationForm({ config }: { config: RegistrationFormConfig })
   function validateStep(targetStep: number): boolean {
     const errors: FieldErrors = {};
     if (targetStep === 0) {
+      if (!payload.track) errors.track = "Pilih jalur pendaftaran.";
+    }
+    if (targetStep === 1) {
       if (payload.identity.name.trim().length < 2) errors["identity.name"] = "Nama lengkap wajib diisi.";
       if (payload.identity.nim.trim().length < 3) errors["identity.nim"] = "NIM wajib diisi.";
       if (!payload.identity.className.trim()) errors["identity.className"] = "Kelas wajib diisi.";
@@ -213,7 +286,7 @@ export function RegistrationForm({ config }: { config: RegistrationFormConfig })
       if (!/^\S+@\S+\.\S+$/u.test(payload.identity.email)) errors["identity.email"] = "Email aktif belum valid.";
       if (!payload.identity.domicile.trim()) errors["identity.domicile"] = "Domisili wajib diisi.";
     }
-    if (targetStep === 1) {
+    if (targetStep === 2) {
       payload.choices.forEach((choice, index) => {
         if (!choice.departmentId) errors[`choices.${index}.departmentId`] = "Pilih Birdep.";
         if (countWords(choice.motivation) < config.motivationMinWords) {
@@ -223,23 +296,47 @@ export function RegistrationForm({ config }: { config: RegistrationFormConfig })
       if (payload.choices[0].departmentId === payload.choices[1].departmentId) {
         errors["choices.1.departmentId"] = "Pilihan 2 harus berbeda dari Pilihan 1.";
       }
+      // Phase C - "Field Khusus Per Birdep" (ADR-043): required only when
+      // the Birdep that needs it was actually chosen.
+      if (requiresMbti && !payload.departmentFields.komitMbti) {
+        errors["departmentFields.komitMbti"] = "Tipe MBTI wajib diisi karena Biro Kolaborasi dan Kemitraan dipilih.";
+      }
+      if (requiresAdkesmahFocus && !payload.departmentFields.adkesmahFocus) {
+        errors["departmentFields.adkesmahFocus"] =
+          "Bidang fokus wajib dipilih karena Departemen Advokasi dan Kesejahteraan Mahasiswa dipilih.";
+      }
     }
-    if (targetStep === 2) {
+    if (targetStep === 3) {
       if (!payload.uploads.cv) errors["uploads.cv"] = "CV PDF wajib diunggah.";
       if (!payload.uploads.photo) errors["uploads.photo"] = "Pas foto wajib diunggah.";
     }
-    if (targetStep === 3) {
+    if (targetStep === 4) {
       Object.entries(payload.essays).forEach(([key, value]) => {
         const words = countWords(value);
         if (words < config.essayMinWords || words > config.essayMaxWords) {
           errors[`essays.${key}`] = `Esai harus ${config.essayMinWords}-${config.essayMaxWords} kata.`;
         }
       });
-      if (requiresPortfolio && payload.portfolio.length === 0) {
-        errors.portfolio = "Tambahkan minimal satu file karya atau tautan HTTPS.";
+      // Phase D - "Portofolio via URL Google Drive" (ADR-045): required
+      // only when Medbrand/Badmedbrnd is chosen, same dynamic pattern as
+      // MBTI/fokus Adkesmah in Step 2.
+      if (requiresPortfolio && !payload.departmentFields.portfolioUrl) {
+        errors["departmentFields.portfolioUrl"] = "Link Google Drive portofolio wajib jika Media Branding dipilih.";
+      } else if (
+        payload.departmentFields.portfolioUrl &&
+        !isValidGoogleDriveUrl(payload.departmentFields.portfolioUrl, config.portfolioUrlMaxLength)
+      ) {
+        errors["departmentFields.portfolioUrl"] = "Link harus berupa URL Google Drive yang valid (https://drive.google.com/...).";
+      }
+      // RAB Komanggar stays optional - only the format is checked.
+      if (
+        payload.departmentFields.budgetPlanUrl &&
+        !isValidGoogleDriveUrl(payload.departmentFields.budgetPlanUrl, config.portfolioUrlMaxLength)
+      ) {
+        errors["departmentFields.budgetPlanUrl"] = "Link harus berupa URL Google Drive yang valid (https://drive.google.com/...).";
       }
     }
-    if (targetStep === 4) {
+    if (targetStep === 5) {
       if (!payload.consent.truthful) errors["consent.truthful"] = "Pernyataan kebenaran data wajib disetujui.";
       if (!payload.consent.processing) errors["consent.processing"] = "Persetujuan pemrosesan data wajib diberikan.";
     }
@@ -253,9 +350,31 @@ export function RegistrationForm({ config }: { config: RegistrationFormConfig })
 
   function nextStep() {
     if (validateStep(step)) {
-      setStep((current) => Math.min(4, current + 1));
+      setStep((current) => Math.min(5, current + 1));
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
+  }
+
+  function chooseTrack(track: Track) {
+    mutate((current) => {
+      if (current.track === track) return current;
+      // "Jika jalur diganti, reset pilihan Birdep di Step 2" - a
+      // motivation written for an executive Birdep wouldn't make sense
+      // carried over to a legislative one (or vice versa), so both
+      // choices reset fully, not just the departmentId.
+      return {
+        ...current,
+        track,
+        choices: [
+          { departmentId: "", motivation: "" },
+          { departmentId: "", motivation: "" },
+        ],
+        // Phase C - "Field Khusus Per Birdep": a Birdep-specific value
+        // (MBTI, fokus Adkesmah) no longer makes sense once the Birdep
+        // choices that triggered it are wiped by a track change.
+        departmentFields: {},
+      };
+    });
   }
 
   async function submit() {
@@ -349,27 +468,47 @@ export function RegistrationForm({ config }: { config: RegistrationFormConfig })
 
       <form className="registration-form" noValidate onSubmit={(event) => event.preventDefault()}>
         {step === 0 ? (
-          <IdentityStep config={config} errors={fieldErrors} payload={payload} mutate={mutate} />
+          <TrackStep departmentsByTrack={departmentsByTrack} errors={fieldErrors} payload={payload} chooseTrack={chooseTrack} />
         ) : null}
         {step === 1 ? (
-          <ChoiceStep config={config} errors={fieldErrors} payload={payload} mutate={mutate} />
+          <IdentityStep config={config} errors={fieldErrors} payload={payload} mutate={mutate} />
         ) : null}
         {step === 2 ? (
-          <DocumentStep config={config} errors={fieldErrors} payload={payload} mutate={mutate} />
+          <ChoiceStep
+            departmentsByTrack={departmentsByTrack}
+            config={config}
+            errors={fieldErrors}
+            payload={payload}
+            mutate={mutate}
+            requiresMbti={requiresMbti}
+            requiresAdkesmahFocus={requiresAdkesmahFocus}
+          />
         ) : null}
         {step === 3 ? (
+          <DocumentStep config={config} errors={fieldErrors} payload={payload} mutate={mutate} />
+        ) : null}
+        {step === 4 ? (
           <EssayPortfolioStep
             config={config}
             errors={fieldErrors}
             payload={payload}
-            portfolioUploads={portfolioUploads}
             requiresPortfolio={requiresPortfolio}
+            allowsBudgetPlan={allowsBudgetPlan}
             mutate={mutate}
-            setPortfolioUploads={setPortfolioUploads}
           />
         ) : null}
-        {step === 4 ? (
-          <ReviewStep config={config} errors={fieldErrors} payload={payload} requiresPortfolio={requiresPortfolio} mutate={mutate} />
+        {step === 5 ? (
+          <ReviewStep
+            departmentsByTrack={departmentsByTrack}
+            config={config}
+            errors={fieldErrors}
+            payload={payload}
+            requiresPortfolio={requiresPortfolio}
+            requiresMbti={requiresMbti}
+            requiresAdkesmahFocus={requiresAdkesmahFocus}
+            allowsBudgetPlan={allowsBudgetPlan}
+            mutate={mutate}
+          />
         ) : null}
       </form>
 
@@ -378,8 +517,8 @@ export function RegistrationForm({ config }: { config: RegistrationFormConfig })
           <ArrowLeft aria-hidden="true" size={17} /> Sebelumnya
         </button>
         <span>Langkah {step + 1} dari {steps.length}</span>
-        {step < 4 ? (
-          <button className="button button--primary" onClick={nextStep} type="button">
+        {step < 5 ? (
+          <button className="button button--primary" disabled={step === 0 && !payload.track} onClick={nextStep} type="button">
             Simpan & lanjut <ArrowRight aria-hidden="true" size={17} />
           </button>
         ) : (
@@ -398,6 +537,50 @@ type StepProps = {
   payload: RegistrationPayload;
   mutate: (mutator: (current: RegistrationPayload) => RegistrationPayload) => void;
 };
+
+function TrackStep({ departmentsByTrack, errors, payload, chooseTrack }: {
+  departmentsByTrack: DepartmentsByTrack;
+  errors: FieldErrors;
+  payload: RegistrationPayload;
+  chooseTrack: (track: Track) => void;
+}) {
+  const options: Array<{ track: Track; description: string; count: number }> = [
+    {
+      track: "EXECUTIVE",
+      description: "Birdep operasional: Biro dan Departemen di bawah koordinasi eksekutif.",
+      count: departmentsByTrack.executive.length,
+    },
+    {
+      track: "LEGISLATIVE",
+      description: "Kombad: Komisi dan Badan di bawah koordinasi legislatif.",
+      count: departmentsByTrack.legislative.length,
+    },
+  ];
+  return (
+    <StepFrame number="00" eyebrow="Sebelum memilih Birdep" title="Pilih jalur pendaftaran">
+      <fieldset className="track-picker" id={fieldId("track")}>
+        <legend className="sr-only">Jalur pendaftaran</legend>
+        <div className="track-picker__grid">
+          {options.map(({ track, description, count }) => (
+            <label className={`track-option${payload.track === track ? " is-selected" : ""}`} key={track}>
+              <input
+                checked={payload.track === track}
+                name="track"
+                onChange={() => chooseTrack(track)}
+                type="radio"
+                value={track}
+              />
+              <span className="track-option__title">{TRACK_LABEL[track]}</span>
+              <span className="track-option__count">{count} unit tersedia</span>
+              <span className="track-option__description">{description}</span>
+            </label>
+          ))}
+        </div>
+        {errors.track ? <p className="field-error">{errors.track}</p> : null}
+      </fieldset>
+    </StepFrame>
+  );
+}
 
 function StepFrame({ number, eyebrow, title, children }: { number: string; eyebrow: string; title: string; children: ReactNode }) {
   return (
@@ -464,15 +647,35 @@ function IdentityStep({ config, errors, payload, mutate }: StepProps) {
   );
 }
 
-function ChoiceStep({ config, errors, payload, mutate }: StepProps) {
+function ChoiceStep({ config, departmentsByTrack, errors, payload, mutate, requiresMbti, requiresAdkesmahFocus }: StepProps & {
+  departmentsByTrack: DepartmentsByTrack;
+  requiresMbti: boolean;
+  requiresAdkesmahFocus: boolean;
+}) {
   const updateChoice = (index: 0 | 1, key: "departmentId" | "motivation", value: string) =>
     mutate((current) => {
       const choices = [...current.choices] as RegistrationPayload["choices"];
       choices[index] = { ...choices[index], [key]: value };
       return { ...current, choices };
     });
+  const updateMbti = (value: string) =>
+    mutate((current) => ({
+      ...current,
+      departmentFields: { ...current.departmentFields, komitMbti: value.toUpperCase() },
+    }));
+  const updateAdkesmahFocus = (value: AdkesmahFocus) =>
+    mutate((current) => ({ ...current, departmentFields: { ...current.departmentFields, adkesmahFocus: value } }));
+  // Phase B - "Jalur Legislatif": options come from GET /api/departments
+  // (departmentsByTrack), filtered to the track chosen in Step 0 - not
+  // config.departments, which is scoped to this period's
+  // acceptsApplications and would leave a just-added track's Birdep
+  // invisible here the moment it isn't currently accepting applications.
+  const trackOptions = departmentsForTrack(departmentsByTrack, payload.track);
   return (
     <StepFrame number="02" eyebrow="Tentukan ruang belajar" title="Dua pilihan Birdep">
+      <p className="track-context">
+        Jalur dipilih: <strong>{payload.track ? TRACK_LABEL[payload.track] : "-"}</strong>
+      </p>
       <div className="choice-stack">
         {([0, 1] as const).map((index) => (
           <article className="choice-panel" key={index}>
@@ -480,8 +683,8 @@ function ChoiceStep({ config, errors, payload, mutate }: StepProps) {
             <Field id={`choices.${index}.departmentId`} label={`Birdep pilihan ${index + 1}`} error={errors[`choices.${index}.departmentId`]}>
               <select id={`${fieldId(`choices.${index}.departmentId`)}-control`} value={payload.choices[index].departmentId} onChange={(e) => updateChoice(index, "departmentId", e.target.value)}>
                 <option value="">Pilih Birdep aktif</option>
-                {config.departments.filter((department) => department.id !== payload.choices[index === 0 ? 1 : 0].departmentId).map((department) => (
-                  <option key={department.id} value={department.id}>{department.name}{department.requiresPortfolio ? " - portofolio wajib" : ""}</option>
+                {trackOptions.filter((department) => department.id !== payload.choices[index === 0 ? 1 : 0].departmentId).map((department) => (
+                  <option key={department.id} value={department.id}>{department.name}{departmentRequiresPortfolio(department) ? " - portofolio wajib" : ""}</option>
                 ))}
               </select>
             </Field>
@@ -491,6 +694,55 @@ function ChoiceStep({ config, errors, payload, mutate }: StepProps) {
           </article>
         ))}
       </div>
+
+      {/* Phase C - "Field Khusus Per Birdep" (ADR-043): dynamic, only
+          rendered when the Birdep that needs it is one of the two
+          choices above. */}
+      {requiresMbti ? (
+        <Field
+          id="departmentFields.komitMbti"
+          label="Tipe MBTI kamu"
+          error={errors["departmentFields.komitMbti"]}
+          hint="4 huruf, kombinasi I/E + N/S + T/F + J/P."
+        >
+          <input
+            id={`${fieldId("departmentFields.komitMbti")}-control`}
+            value={payload.departmentFields.komitMbti ?? ""}
+            onChange={(e) => updateMbti(e.target.value)}
+            placeholder="Contoh: INTJ, ENFP, ISTP..."
+            maxLength={4}
+            style={{ textTransform: "uppercase" }}
+          />
+        </Field>
+      ) : null}
+      {requiresAdkesmahFocus ? (
+        <fieldset className="form-field" id={fieldId("departmentFields.adkesmahFocus")}>
+          <legend>Bidang yang ingin kamu fokuskan</legend>
+          <label>
+            <input
+              checked={payload.departmentFields.adkesmahFocus === "ADVOCACY"}
+              name="adkesmah-focus"
+              onChange={() => updateAdkesmahFocus("ADVOCACY")}
+              type="radio"
+              value="ADVOCACY"
+            />
+            <span>Advokasi Mahasiswa</span>
+          </label>
+          <label>
+            <input
+              checked={payload.departmentFields.adkesmahFocus === "WELFARE"}
+              name="adkesmah-focus"
+              onChange={() => updateAdkesmahFocus("WELFARE")}
+              type="radio"
+              value="WELFARE"
+            />
+            <span>Kesejahteraan Mahasiswa</span>
+          </label>
+          {errors["departmentFields.adkesmahFocus"] ? (
+            <p className="field-error">{errors["departmentFields.adkesmahFocus"]}</p>
+          ) : null}
+        </fieldset>
+      ) : null}
     </StepFrame>
   );
 }
@@ -552,78 +804,117 @@ function UploadField({ config, id, label, accept, detail, error, kind, value, on
   );
 }
 
-function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, portfolioUploads, mutate, setPortfolioUploads }: StepProps & {
+function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allowsBudgetPlan, mutate }: StepProps & {
   requiresPortfolio: boolean;
-  portfolioUploads: UploadReference[];
-  setPortfolioUploads: (value: UploadReference[]) => void;
+  allowsBudgetPlan: boolean;
 }) {
   const updateEssay = (key: keyof RegistrationPayload["essays"], value: string) => mutate((current) => ({ ...current, essays: { ...current.essays, [key]: value } }));
+  const updateDriveUrl = (key: "portfolioUrl" | "budgetPlanUrl", value: string) =>
+    mutate((current) => ({ ...current, departmentFields: { ...current.departmentFields, [key]: value } }));
   const essayFields = [
     ["organizationExperience", "Pengalaman organisasi sebelumnya"],
     ["contribution", "Kontribusi untuk Pilihan 1"],
     ["academicBalance", "Cara menyeimbangkan akademik dan organisasi"],
   ] as const;
-  function addExternal() {
-    mutate((current) => ({ ...current, portfolio: [...current.portfolio, { type: "EXTERNAL_LINK", externalUrl: "", title: "", description: "", applicantRole: "", sortOrder: current.portfolio.length }] }));
-  }
-  async function addPortfolioFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]; if (!file) return;
-    const body = new FormData(); body.set("periodId", config.periodId); body.set("kind", "PORTFOLIO"); body.set("file", file);
-    const response = await fetch("/api/registration/uploads", { method: "POST", body });
-    const result = await response.json() as { upload?: UploadReference; error?: string };
-    if (!response.ok || !result.upload) { window.alert(result.error ?? "Upload portofolio gagal."); return; }
-    const upload = result.upload;
-    setPortfolioUploads([...portfolioUploads, upload]);
-    mutate((current) => ({ ...current, portfolio: [...current.portfolio, { type: "FILE", fileUploadId: upload.id, title: "", description: "", applicantRole: "", sortOrder: current.portfolio.length }] }));
-    event.target.value = "";
-  }
-  function updatePortfolio(index: number, key: keyof PortfolioInput, value: string | number) {
-    mutate((current) => ({ ...current, portfolio: current.portfolio.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item) }));
-  }
-  async function removePortfolio(index: number) {
-    const item = payload.portfolio[index];
-    if (item.type === "FILE" && item.fileUploadId) {
-      await fetch(`/api/registration/uploads/${item.fileUploadId}`, { method: "DELETE" });
-      setPortfolioUploads(portfolioUploads.filter((upload) => upload.id !== item.fileUploadId));
-    }
-    mutate((current) => ({ ...current, portfolio: current.portfolio.filter((_, itemIndex) => itemIndex !== index).map((entry, itemIndex) => ({ ...entry, sortOrder: itemIndex })) }));
-  }
   return (
     <StepFrame number="04" eyebrow="Cerita dan bukti karya" title="Esai & portofolio bersyarat">
       <div className="essay-stack">
         {essayFields.map(([key, label]) => <Field key={key} id={`essays.${key}`} label={label} error={errors[`essays.${key}`]} hint={`${config.essayMinWords}-${config.essayMaxWords} kata · ${countWords(payload.essays[key])} kata`}><textarea id={`${fieldId(`essays.${key}`)}-control`} value={payload.essays[key]} onChange={(event) => updateEssay(key, event.target.value)} rows={7} /></Field>)}
       </div>
-      <section className={`portfolio-section${requiresPortfolio ? " is-required" : ""}`} id={fieldId("portfolio")}>
-        <header><div><p className="eyebrow">Media Branding</p><h3>Portofolio karya</h3><p>{requiresPortfolio ? "Wajib karena Media Branding dipilih." : "Opsional untuk pilihan saat ini."}</p></div><span>{payload.portfolio.length} item</span></header>
-        {errors.portfolio ? <p className="field-error">{errors.portfolio}</p> : null}
-        <div className="portfolio-actions">
-          <label className="button button--outline"><UploadCloud aria-hidden="true" size={16} /> Tambah file<input accept=".jpg,.jpeg,.png,image/jpeg,image/png" aria-label="Tambah file portofolio" disabled={portfolioUploads.length >= config.portfolioMaxFiles} onChange={addPortfolioFile} type="file" /></label>
-          <button className="button button--outline" onClick={addExternal} type="button"><Link2 aria-hidden="true" size={16} /> Tambah tautan HTTPS</button>
-        </div>
-        <p className="portfolio-policy">Maksimum {config.portfolioMaxFiles} file, {formatBytes(config.portfolioMaxFileBytes)} per file. Server tidak mengambil isi tautan.</p>
-        <div className="portfolio-list">
-          {payload.portfolio.map((item, index) => {
-            const upload = item.fileUploadId ? portfolioUploads.find((entry) => entry.id === item.fileUploadId) : null;
-            return <article key={`${item.type}-${item.fileUploadId ?? index}`}><header><span>{String(index + 1).padStart(2, "0")}</span><strong>{item.type === "FILE" ? upload?.name ?? "File privat" : "Tautan eksternal"}</strong><button aria-label={`Hapus item portofolio ${index + 1}`} onClick={() => removePortfolio(index)} type="button"><Trash2 aria-hidden="true" size={16} /></button></header>{item.type === "EXTERNAL_LINK" ? <Field id={`portfolio.${index}`} label="URL HTTPS" error={errors[`portfolio.${index}`]}><input id={`${fieldId(`portfolio.${index}`)}-control`} value={item.externalUrl ?? ""} onChange={(event) => updatePortfolio(index, "externalUrl", event.target.value)} type="url" placeholder="https://" /></Field> : null}<div className="form-grid form-grid--two"><Field id={`portfolio.${index}.title`} label="Judul karya"><input id={`${fieldId(`portfolio.${index}.title`)}-control`} value={item.title ?? ""} onChange={(event) => updatePortfolio(index, "title", event.target.value)} /></Field><Field id={`portfolio.${index}.applicantRole`} label="Peranmu"><input id={`${fieldId(`portfolio.${index}.applicantRole`)}-control`} value={item.applicantRole ?? ""} onChange={(event) => updatePortfolio(index, "applicantRole", event.target.value)} /></Field><Field id={`portfolio.${index}.description`} label="Deskripsi / kategori"><textarea id={`${fieldId(`portfolio.${index}.description`)}-control`} value={item.description ?? ""} onChange={(event) => updatePortfolio(index, "description", event.target.value)} rows={3} /></Field><Field id={`portfolio.${index}.creationYear`} label="Tahun pembuatan"><input id={`${fieldId(`portfolio.${index}.creationYear`)}-control`} value={item.creationYear ?? ""} onChange={(event) => updatePortfolio(index, "creationYear", Number(event.target.value))} type="number" min="1900" max="2200" /></Field></div></article>;
-          })}
-        </div>
-      </section>
+
+      {/* Phase D - "Portofolio via URL Google Drive" (ADR-045): dynamic,
+          only rendered when Medbrand/Badmedbrnd is one of the two choices
+          - replaces the old multi-item file/link portfolio mechanism
+          entirely with a single Google Drive link. */}
+      {requiresPortfolio ? (
+        <section className="portfolio-section is-required" id={fieldId("departmentFields.portfolioUrl")}>
+          <header><div><p className="eyebrow">Media Branding</p><h3>Portofolio karya</h3><p>Wajib karena Media Branding dipilih.</p></div></header>
+          <Field
+            id="departmentFields.portfolioUrl"
+            label="Link Google Drive Portofolio"
+            error={errors["departmentFields.portfolioUrl"]}
+            hint="Pastikan link sudah diset 'Anyone with the link can view' sebelum dikirimkan."
+          >
+            <input
+              id={`${fieldId("departmentFields.portfolioUrl")}-control`}
+              value={payload.departmentFields.portfolioUrl ?? ""}
+              onChange={(event) => updateDriveUrl("portfolioUrl", event.target.value)}
+              type="url"
+              placeholder="https://drive.google.com/..."
+              maxLength={config.portfolioUrlMaxLength}
+            />
+          </Field>
+        </section>
+      ) : null}
+
+      {/* Phase D - "Portofolio via URL Google Drive" (ADR-045): dynamic,
+          only rendered when Komisi Anggaran is one of the two choices -
+          always optional ("nilai plus"), unlike the portfolio field
+          above. */}
+      {allowsBudgetPlan ? (
+        <section className="portfolio-section" id={fieldId("departmentFields.budgetPlanUrl")}>
+          <header>
+            <div><p className="eyebrow">Komisi Anggaran</p><h3>RAB (rencana anggaran biaya)</h3><p>Opsional, nilai plus untuk pilihan Komisi Anggaran.</p></div>
+          </header>
+          <Field
+            id="departmentFields.budgetPlanUrl"
+            label="Link Google Drive RAB"
+            error={errors["departmentFields.budgetPlanUrl"]}
+            hint="Pastikan link sudah diset 'Anyone with the link can view' sebelum dikirimkan."
+          >
+            <input
+              id={`${fieldId("departmentFields.budgetPlanUrl")}-control`}
+              value={payload.departmentFields.budgetPlanUrl ?? ""}
+              onChange={(event) => updateDriveUrl("budgetPlanUrl", event.target.value)}
+              type="url"
+              placeholder="https://drive.google.com/..."
+              maxLength={config.portfolioUrlMaxLength}
+            />
+          </Field>
+        </section>
+      ) : null}
     </StepFrame>
   );
 }
 
-function ReviewStep({ config, errors, payload, requiresPortfolio, mutate }: StepProps & { requiresPortfolio: boolean }) {
-  const department = (id: string) => config.departments.find((item) => item.id === id)?.name ?? "-";
+function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortfolio, requiresMbti, requiresAdkesmahFocus, allowsBudgetPlan, mutate }: StepProps & {
+  departmentsByTrack: DepartmentsByTrack;
+  requiresPortfolio: boolean;
+  requiresMbti: boolean;
+  requiresAdkesmahFocus: boolean;
+  allowsBudgetPlan: boolean;
+}) {
+  // departmentsByTrack first (matches what Step 2 actually showed/what the
+  // user picked - correct regardless of this period's acceptsApplications
+  // state), falling back to config.departments for robustness.
+  const department = (id: string) =>
+    allDepartments(departmentsByTrack).find((item) => item.id === id)?.name ??
+    config.departments.find((item) => item.id === id)?.name ?? "-";
   const program = config.studyPrograms.find((item) => item.id === payload.identity.studyProgramId)?.name ?? "-";
   const setConsent = (key: "truthful" | "processing", value: boolean) => mutate((current) => ({ ...current, consent: { ...current.consent, [key]: value } }));
   return (
     <StepFrame number="05" eyebrow="Periksa sebelum commit" title="Review & persetujuan">
       <div className="review-sheet">
+        <ReviewSection title="Jalur Pendaftaran"><dl><ReviewItem label="Jalur" value={payload.track ? TRACK_LABEL[payload.track] : "-"} /></dl></ReviewSection>
         <ReviewSection title="Identitas"><dl><ReviewItem label="Nama" value={payload.identity.name} /><ReviewItem label="NIM" value={payload.identity.nim} /><ReviewItem label="Angkatan / tahun masuk" value={`${payload.identity.cohortCode} / ${payload.identity.entryYear}`} /><ReviewItem label="Prodi" value={program} /><ReviewItem label="Kelas" value={payload.identity.className} /><ReviewItem label="WhatsApp" value={payload.identity.phone} /><ReviewItem label="Email" value={payload.identity.email} /><ReviewItem label="Domisili" value={payload.identity.domicile} /></dl></ReviewSection>
         <ReviewSection title="Pilihan Birdep">{payload.choices.map((choice, index) => <article key={index}><strong>Pilihan {index + 1} · {department(choice.departmentId)}</strong><p>{choice.motivation}</p></article>)}</ReviewSection>
+        {requiresMbti || requiresAdkesmahFocus || requiresPortfolio || allowsBudgetPlan ? (
+          <ReviewSection title="Data Khusus Birdep">
+            <dl>
+              {requiresMbti ? <ReviewItem label="Tipe MBTI" value={payload.departmentFields.komitMbti ?? ""} /> : null}
+              {requiresAdkesmahFocus ? (
+                <ReviewItem
+                  label="Bidang fokus"
+                  value={payload.departmentFields.adkesmahFocus ? ADKESMAH_FOCUS_LABEL[payload.departmentFields.adkesmahFocus] : ""}
+                />
+              ) : null}
+              {requiresPortfolio ? <ReviewItem label="Link Portofolio" value={payload.departmentFields.portfolioUrl ?? ""} /> : null}
+              {allowsBudgetPlan ? <ReviewItem label="Link RAB" value={payload.departmentFields.budgetPlanUrl ?? ""} /> : null}
+            </dl>
+          </ReviewSection>
+        ) : null}
         <ReviewSection title="Dokumen"><ul><li>CV · {payload.uploads.cv ? `${payload.uploads.cv.name} (${formatBytes(payload.uploads.cv.sizeBytes)})` : "Belum ada"}</li><li>Pas foto · {payload.uploads.photo ? `${payload.uploads.photo.name} (${formatBytes(payload.uploads.photo.sizeBytes)})` : "Belum ada"}</li><li>KTM · {payload.uploads.studentCard ? `${payload.uploads.studentCard.name} (${formatBytes(payload.uploads.studentCard.sizeBytes)})` : "Tidak dilampirkan"}</li></ul></ReviewSection>
         <ReviewSection title="Esai"><article><strong>Pengalaman organisasi</strong><p>{payload.essays.organizationExperience}</p></article><article><strong>Kontribusi untuk Pilihan 1</strong><p>{payload.essays.contribution}</p></article><article><strong>Keseimbangan akademik</strong><p>{payload.essays.academicBalance}</p></article></ReviewSection>
-        {requiresPortfolio || payload.portfolio.length > 0 ? <ReviewSection title="Portofolio"><ul>{payload.portfolio.map((item, index) => <li key={index}>{index + 1}. {item.type === "FILE" ? "File privat" : item.externalUrl} · {item.title || "Tanpa judul"}</li>)}</ul></ReviewSection> : null}
       </div>
       <div className="consent-panel">
         <div className="consent-panel__version"><span>DRAFT DEVELOPMENT</span><strong>Versi consent: {config.consentVersion}</strong><p>Ini bukan kebijakan legal final dan submission production tetap fail-closed untuk consent DRAFT.</p></div>

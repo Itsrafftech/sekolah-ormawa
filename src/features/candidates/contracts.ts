@@ -48,24 +48,15 @@ export type CandidateListResult = {
   counts: Record<CandidateSegment, number>;
 };
 
+// Phase D (ADR-045): PORTFOLIO/BUDGET_PLAN removed - both retired as
+// upload kinds, replaced by a Google Drive URL (see
+// CandidateSupplementalSummary.portfolioUrl/budgetPlanUrl below).
 export type CandidateUploadSummary = {
   id: string;
-  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "PORTFOLIO";
+  kind: "CV" | "PHOTO" | "STUDENT_CARD";
   originalFileName: string;
   sizeBytes: number;
   detectedMimeType: string | null;
-};
-
-export type CandidatePortfolioSummary = {
-  id: string;
-  type: "FILE" | "EXTERNAL_LINK";
-  title: string | null;
-  description: string | null;
-  applicantRole: string | null;
-  creationYear: number | null;
-  sortOrder: number;
-  externalUrl: string | null;
-  file: CandidateUploadSummary | null;
 };
 
 export type CandidateChoiceSummary = {
@@ -109,6 +100,24 @@ export type CandidatePlacementSummary = {
   updatedAt: string;
 };
 
+// Phase C - "Field Khusus Per Birdep" (ADR-043). Each field is nulled out
+// server-side (src/server/candidates/detail.ts) unless the viewer's
+// CURRENT department scope (their own department for DEPT_PJ - always
+// fixed - or whichever department Super Admin has switched into, per the
+// department-switcher pattern from ADR-028) is the one that field
+// belongs to. `null` on the whole object means none of these fields are
+// visible/applicable for this viewer+candidate pair, not that the section
+// should render empty - the UI hides the section entirely in that case.
+// Phase D (ADR-045): portfolioUrl (Medbrand/Badmedbrnd) and budgetPlanUrl
+// (Komanggar) are plain Google Drive URL strings, scoped the same way as
+// komitMbti/adkesmahFocus - no more CandidateUploadSummary/file involved.
+export type CandidateSupplementalSummary = {
+  komitMbti: string | null;
+  adkesmahFocus: "ADVOCACY" | "WELFARE" | null;
+  portfolioUrl: string | null;
+  budgetPlanUrl: string | null;
+};
+
 export type CandidateSelectionDetail = {
   status: SelectionStatusValue;
   role: SelectionRole;
@@ -139,7 +148,7 @@ export type CandidateDetail = {
   submittedAt: string;
   choices: CandidateChoiceSummary[];
   uploads: CandidateUploadSummary[];
-  portfolios: CandidatePortfolioSummary[];
+  supplemental: CandidateSupplementalSummary | null;
   activeLock: CandidateLockSummary | null;
   placement: CandidatePlacementSummary | null;
   selection: CandidateSelectionDetail | null;

@@ -2275,6 +2275,28 @@ summary:focus-visible {
 .has-error select,
 .has-error textarea { border-color: #a51d31; }
 
+.track-context { margin: -8px 0 26px; color: var(--ink-soft); font-size: 13px; }
+
+.track-picker { margin: 0; padding: 0; border: 0; }
+.track-picker__grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; }
+.track-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 26px;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.25);
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.track-option:hover { border-color: var(--line-strong); }
+.track-option input { position: absolute; top: 22px; right: 22px; width: 18px; height: 18px; accent-color: var(--burgundy); }
+.track-option.is-selected { border-color: var(--burgundy); background: rgba(112,35,48,.06); }
+.track-option__title { padding-right: 30px; font-family: var(--display); font-size: 26px; font-weight: 500; }
+.track-option__count { color: var(--burgundy); font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.track-option__description { margin-top: 8px; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+
 .choice-stack,
 .essay-stack { display: grid; gap: 34px; }
 .choice-panel {
@@ -2393,6 +2415,7 @@ summary:focus-visible {
   .upload-field { grid-template-columns: 50px 1fr; }
   .upload-field > :nth-child(3) { grid-column: 2; }
   .review-section { grid-template-columns: 1fr; gap: 18px; }
+  .track-picker__grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {

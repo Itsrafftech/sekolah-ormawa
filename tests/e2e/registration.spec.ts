@@ -6,6 +6,11 @@ const longMotivation = Array.from({ length: 100 }, (_, index) => `motivasi${inde
 const pdf = Buffer.from("%PDF-1.4 synthetic e2e fixture");
 const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 
+async function chooseTrack(page: Page, track: "Eksekutif PKU" | "Legislatif PKU" = "Eksekutif PKU") {
+  await page.getByRole("radio", { name: new RegExp(track, "u") }).check();
+  await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
+}
+
 async function fillIdentity(page: Page, suffix: string) {
   await page.getByLabel("Nama lengkap").fill(`Peserta Sintetis ${suffix}`);
   await page.getByLabel("NIM").fill(`NIM-${suffix}`);
@@ -27,6 +32,7 @@ async function goToDocuments(page: Page, medbrandAs?: 1 | 2) {
 
 test("error summary menerima focus dan form dapat digunakan keyboard", async ({ page }) => {
   await page.goto("/daftar");
+  await chooseTrack(page);
   const next = page.getByRole("button", { name: /Simpan & lanjut/ });
   await next.focus();
   await page.keyboard.press("Enter");
@@ -37,9 +43,14 @@ test("error summary menerima focus dan form dapat digunakan keyboard", async ({ 
 
 test("draft teks bertahan setelah refresh dan consent tidak dipulihkan", async ({ page }) => {
   await page.goto("/daftar");
+  await chooseTrack(page);
   await page.getByLabel("Nama lengkap").fill("Draft Sintetis Bertahan");
   await page.waitForTimeout(1200);
   await page.reload();
+  // Jalur (Step 0) tersimpan di draft dan sudah terpilih lagi setelah
+  // reload, tapi `step` sendiri selalu mulai dari 0 - klik lanjut sekali
+  // untuk kembali ke Step 1 tempat field identitas berada.
+  await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
   await expect(page.getByLabel("Nama lengkap")).toHaveValue("Draft Sintetis Bertahan");
   await expect(page.getByText(/Draft lokal dipulihkan/)).toBeVisible();
 });
@@ -60,6 +71,7 @@ test("draft dari schema lama atau periode berbeda ditolak dengan aman", async ({
     );
   }, { periodId: E2E_PERIOD_ID });
   await page.reload();
+  await chooseTrack(page);
   await expect(page.getByLabel("Nama lengkap")).toHaveValue("");
   await expect.poll(() => page.evaluate(({ periodId }) => {
     const raw = window.localStorage.getItem(`sekolah-ormawa:registration-draft:${periodId}`);
@@ -71,6 +83,7 @@ test("happy path non-Medbrand menyimpan kandidat dan menampilkan bukti", async (
   const suffix = `e2e-${Date.now()}`;
   await page.goto("/daftar");
   await page.getByRole("button", { name: "Hapus draft" }).click();
+  await chooseTrack(page);
   await fillIdentity(page, suffix);
   await goToDocuments(page);
 
@@ -97,6 +110,7 @@ test("Medbrand Pilihan 2 memunculkan portofolio dan menerima URL HTTPS", async (
   const suffix = `medbrand-${Date.now()}`;
   await page.goto("/daftar");
   await page.getByRole("button", { name: "Hapus draft" }).click();
+  await chooseTrack(page);
   await fillIdentity(page, suffix);
   await goToDocuments(page, 2);
   await page.getByLabel("Pilih file CV").setInputFiles({ name: "cv.pdf", mimeType: "application/pdf", buffer: pdf });

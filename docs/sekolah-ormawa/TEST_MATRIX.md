@@ -86,6 +86,18 @@
 | F9-04 | Adapter email production Resend | `ResendEmailAdapter` diuji dengan SDK di-mock: subjek/html/text benar untuk 4 jenis payload, idempotency key diteruskan ke Resend, error provider dilempar ulang sebagai error yang jelas | 9 | PASS |
 | F9-05 | Deployment artifact self-hosted (Docker/Nginx) | `Dockerfile` (standalone Next.js, image 329MB) build sukses; stack penuh `docker-compose.prod.yml` (app+Postgres+MinIO+Nginx) diverifikasi lokal - app<->Postgres (readiness 200), app<->MinIO (reachable), Nginx HTTP->HTTPS redirect dan ACME challenge path benar, `nginx -t` valid | 9 | PASS |
 | F9-06 | Nginx X-Forwarded-For hardening | Konfigurasi diperbaiki dari `$proxy_add_x_forwarded_for` (bisa dispoof client) ke `$remote_addr` (selalu IP koneksi TCP asli) - mencegah bypass rate limiter lewat header X-Forwarded-For palsu | 9 | PASS |
+| PC-01 | MBTI Komit wajib, format valid | Unit + integration test (fast-fail dan authoritative check); live browser test (uppercase live, lolos ke step berikutnya) | C | PASS |
+| PC-02 | Fokus Adkesmah wajib, radio 2 opsi | Unit + integration test; live browser test | C | PASS |
+| PC-03 | Portofolio Badmedbrnd legislatif = Medbrand eksekutif | Unit + integration test (`PORTFOLIO_REQUIRED` mencakup kedua kode); test Medbrand lama tetap lulus (no regresi) | C | PASS |
+| PC-04 | RAB Komisi Anggaran opsional, PDF/XLS/XLSX 5MB | Unit test `detectMimeType`/`validateUploadFile` (termasuk ambiguitas magic byte ZIP/XLSX); integration test upload dan FINALIZED di DB; live browser upload | C | PASS |
+| PC-05 | Field dinamis sesuai Birdep dipilih | Live browser test: MBTI+fokus muncul setelah pilih Komit+Adkesmah; RAB muncul setelah pilih Komisi Anggaran; tidak muncul untuk Birdep lain | C | PASS |
+| PC-06 | Dashboard PJ "Data Khusus Birdep" di-scope per Birdep | Review kode `getCandidateDetail()`/`resolveRequestDepartmentId` - visibility di-key ke scope departemen viewer yang sudah divalidasi backend, bukan trust client | C | PASS |
+| PC-07 | Migration rollback-able | Rollback didokumentasikan di komentar `migration.sql`; `prisma migrate diff --exit-code` nol drift setelah apply pada dev+test DB | C | PASS |
+| PD-01 | Portofolio/RAB jadi URL Google Drive, upload file dihapus | `CandidatePortfolio` di-drop dari schema; `registration-form.tsx` Step 4 hanya input URL; live browser test end-to-end (submit -> tersimpan -> tampil di dashboard) | D | PASS |
+| PD-02 | Validasi URL Google Drive (client+server), tolak host lain | `isValidGoogleDriveUrl()` (hostname-based, bukan string-prefix); live browser test (behance.net ditolak, drive.google.com diterima); integration test authoritative | D | PASS |
+| PD-03 | 5 akun PJ legislatif dibuat dan bisa login | Live browser test seluruh 5 akun (form login sungguhan) + query DB | D | PASS |
+| PD-04 | Dashboard PJ legislatif hanya menampilkan kandidat jalur legislatif | Live browser test (pj.badmed/pj.komleg: 0 kandidat eksekutif, hanya kandidat legislatif) | D | PASS |
+| PD-05 | Link portofolio hanya terlihat oleh PJ Birdep terkait | Live browser test: pj.badmed melihat link, pj.komleg (Birdep lain, kandidat sama) tidak melihat section sama sekali | D | PASS |
 
 ## Bukti Phase 0 revisi
 

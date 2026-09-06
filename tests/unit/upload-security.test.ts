@@ -12,14 +12,18 @@ const pdf = new TextEncoder().encode("%PDF-1.4 fixture");
 
 describe("private upload validation", () => {
   it("mendeteksi magic byte PDF, JPEG, dan PNG", () => {
-    expect(detectMimeType(pdf)).toBe("application/pdf");
-    expect(detectMimeType(jpeg)).toBe("image/jpeg");
-    expect(detectMimeType(png)).toBe("image/png");
+    expect(detectMimeType(pdf)).toEqual(["application/pdf"]);
+    expect(detectMimeType(jpeg)).toEqual(["image/jpeg"]);
+    expect(detectMimeType(png)).toEqual(["image/png"]);
   });
 
-  it("menerima CV PDF dan portfolio JPG/PNG valid", () => {
+  it("mengembalikan array kosong untuk byte yang tidak dikenali", () => {
+    expect(detectMimeType(new Uint8Array([1, 2, 3]))).toEqual([]);
+  });
+
+  it("menerima CV PDF dan foto PNG valid", () => {
     expect(validateUploadFile({ kind: "CV", fileName: "fixture.pdf", declaredMimeType: "application/pdf", bytes: pdf }).detectedMimeType).toBe("application/pdf");
-    expect(validateUploadFile({ kind: "PORTFOLIO", fileName: "fixture.png", declaredMimeType: "image/png", bytes: png }).detectedMimeType).toBe("image/png");
+    expect(validateUploadFile({ kind: "PHOTO", fileName: "fixture.png", declaredMimeType: "image/png", bytes: png }).detectedMimeType).toBe("image/png");
   });
 
   it("menolak extension palsu dan MIME tidak cocok", () => {
@@ -31,5 +35,18 @@ describe("private upload validation", () => {
     const oversized = new Uint8Array(1024 * 1024 + 1);
     oversized.set(png);
     expect(() => validateUploadFile({ kind: "PHOTO", fileName: "fixture.png", declaredMimeType: "image/png", bytes: oversized })).toThrow("Ukuran");
+  });
+
+  // Phase D - "Portofolio via URL Google Drive" (ADR-045): PORTFOLIO and
+  // BUDGET_PLAN are retired as upload kinds - policyFor() returns an
+  // impossible-to-satisfy policy for both so any attempted upload of
+  // either kind is rejected outright, regardless of file content.
+  it("menolak PORTFOLIO dan BUDGET_PLAN - kind upload yang sudah pensiun", () => {
+    expect(() =>
+      validateUploadFile({ kind: "PORTFOLIO", fileName: "fixture.png", declaredMimeType: "image/png", bytes: png }),
+    ).toThrow(UploadValidationError);
+    expect(() =>
+      validateUploadFile({ kind: "BUDGET_PLAN", fileName: "rab.pdf", declaredMimeType: "application/pdf", bytes: pdf }),
+    ).toThrow(UploadValidationError);
   });
 });

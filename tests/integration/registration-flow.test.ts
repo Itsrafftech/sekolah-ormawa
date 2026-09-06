@@ -17,11 +17,26 @@ const periodId = "71000000-0000-4000-8000-000000000001";
 const departmentA = "72000000-0000-4000-8000-000000000001";
 const departmentB = "72000000-0000-4000-8000-000000000002";
 const medbrand = "72000000-0000-4000-8000-000000000003";
+const legislativeA = "72000000-0000-4000-8000-000000000004";
+const legislativeB = "72000000-0000-4000-8000-000000000005";
+// Phase C - "Field Khusus Per Birdep" (ADR-043) fixtures. KOMIT/ADKESMAH
+// are EXECUTIVE-track (matches prisma/seed.ts's real data); KOMANGG is
+// LEGISLATIVE, same as the other 4 units Phase A introduced.
+const komit = "72000000-0000-4000-8000-000000000006";
+const adkesmah = "72000000-0000-4000-8000-000000000007";
+const komanggar = "72000000-0000-4000-8000-000000000008";
+// legislativeB above is coded 'TEST-BADMEDBRND' (a generic legislative
+// fixture predating Phase C, used only for track tests) - deliberately
+// NOT the exact 'BADMEDBRND' code submit.ts/validation.ts match on, so it
+// never triggers Phase C's portfolio requirement. This fixture uses the
+// real code for the tests that need that requirement to actually fire.
+const badmedbrndReal = "72000000-0000-4000-8000-000000000009";
 const studyProgramId = "73000000-0000-4000-8000-000000000001";
 const motivation = Array.from({ length: 100 }, (_, index) => `alasan${index}`).join(" ");
 const pdf = new TextEncoder().encode("%PDF-1.4 synthetic integration fixture");
 const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
-const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+// Phase D - "Portofolio via URL Google Drive" (ADR-045).
+const driveUrl = "https://drive.google.com/file/d/synthetic-fixture/view";
 
 class MemoryStorage implements PrivateStorageAdapter {
   readonly objects = new Map<string, Uint8Array>();
@@ -46,10 +61,10 @@ beforeAll(async () => {
 
   await pool.query(`
     TRUNCATE TABLE
-      registration_confirmations, candidate_portfolios, candidate_locks,
-      candidate_choices, file_uploads, candidates, email_outbox,
-      idempotency_records, audit_logs, period_departments,
-      study_programs, recruitment_periods, departments
+      registration_confirmations, candidate_locks,
+      candidate_supplemental_data, candidate_choices, file_uploads,
+      candidates, email_outbox, idempotency_records, audit_logs,
+      period_departments, study_programs, recruitment_periods, departments
     RESTART IDENTITY CASCADE
   `);
   await pool.query(
@@ -60,13 +75,37 @@ beforeAll(async () => {
             ($3, 'MEDBRAND', 'Biro Media Branding', 'Medbrand', 'BIRO', 3, true, 'ACTIVE', now(), now())`,
     [departmentA, departmentB, medbrand],
   );
+  // Phase A - "Jalur Legislatif": track defaults to EXECUTIVE at the DB
+  // level (departments.track has a DEFAULT), so the insert above needs no
+  // changes - only these two legislative fixtures set it explicitly.
+  await pool.query(
+    `INSERT INTO departments
+      (id, code, name, "shortName", "unitType", track, "sortOrder", "isActive", "configStatus", "createdAt", "updatedAt")
+     VALUES ($1, 'TEST-KOMLEG', 'Komisi Legislasi Test', 'Komleg', 'DEPARTEMEN', 'LEGISLATIVE', 4, true, 'ACTIVE', now(), now()),
+            ($2, 'TEST-BADMEDBRND', 'Badan Media dan Branding Test', 'Badmedbrnd', 'BIRO', 'LEGISLATIVE', 5, true, 'ACTIVE', now(), now()),
+            ($3, 'KOMANGG', 'Komisi Anggaran Test', 'Komanggar', 'DEPARTEMEN', 'LEGISLATIVE', 6, true, 'ACTIVE', now(), now()),
+            ($4, 'BADMEDBRND', 'Badan Media dan Branding Test (real code)', 'Badmedbrnd2', 'BIRO', 'LEGISLATIVE', 9, true, 'ACTIVE', now(), now())`,
+    [legislativeA, legislativeB, komanggar, badmedbrndReal],
+  );
+  // Phase C - "Field Khusus Per Birdep": KOMIT/ADKESMAH stay EXECUTIVE
+  // (default), same insert shape as the first departments query above.
+  await pool.query(
+    `INSERT INTO departments
+      (id, code, name, "shortName", "unitType", "sortOrder", "isActive", "configStatus", "createdAt", "updatedAt")
+     VALUES ($1, 'KOMIT', 'Biro Kolaborasi dan Kemitraan Test', 'Komit', 'BIRO', 7, true, 'ACTIVE', now(), now()),
+            ($2, 'ADKESMAH', 'Advokasi dan Kesejahteraan Mahasiswa Test', 'Adkesmah', 'DEPARTEMEN', 8, true, 'ACTIVE', now(), now())`,
+    [komit, adkesmah],
+  );
   await pool.query(
     `INSERT INTO recruitment_periods
       (id, code, name, status, "configStatus", "cohortCode", "entryYear", "registrationPrefix", "registrationSequence", "opensAt", "closesAt", "choice2Required", "allowUnlock", "consentVersion", "createdAt", "updatedAt")
      VALUES ($1, 'PHASE3-TEST', 'Periode Sintetis Phase 3', 'OPEN', 'ACTIVE', 63, 2026, 'TEST63', 0, now() - interval '1 hour', now() + interval '1 day', true, false, 'DRAFT-CONSENT-TEST', now(), now())`,
     [periodId],
   );
-  for (const departmentId of [departmentA, departmentB, medbrand]) {
+  for (const departmentId of [
+    departmentA, departmentB, medbrand, legislativeA, legislativeB,
+    komit, adkesmah, komanggar, badmedbrndReal,
+  ]) {
     await pool.query(
       `INSERT INTO period_departments
         (id, "periodId", "departmentId", "acceptsApplications", "createdAt", "updatedAt")
@@ -85,9 +124,9 @@ beforeAll(async () => {
 afterAll(async () => {
   await pool.query(`
     TRUNCATE TABLE
-      registration_confirmations, candidate_portfolios, candidate_choices,
-      file_uploads, candidates, email_outbox, idempotency_records, audit_logs,
-      period_departments, study_programs, recruitment_periods, departments
+      registration_confirmations, candidate_supplemental_data,
+      candidate_choices, file_uploads, candidates, email_outbox, idempotency_records,
+      audit_logs, period_departments, study_programs, recruitment_periods, departments
     RESTART IDENTITY CASCADE
   `);
   await disconnectPrismaForTests();
@@ -96,25 +135,24 @@ afterAll(async () => {
 
 async function upload(
   ownerToken: string,
-  kind: "CV" | "PHOTO" | "PORTFOLIO",
+  kind: "CV" | "PHOTO" | "STUDENT_CARD",
   suffix: string,
-  portfolioMime: "JPEG" | "PNG" = "JPEG",
 ): Promise<UploadReference> {
   const isPdf = kind === "CV";
-  const isPortfolio = kind === "PORTFOLIO";
-  const isPngPortfolio = isPortfolio && portfolioMime === "PNG";
   const result = await createPrivateUpload({
     periodId,
     ownerToken,
     kind,
-    fileName: isPdf ? `${suffix}.pdf` : isPortfolio && !isPngPortfolio ? `${suffix}.jpg` : `${suffix}.png`,
-    declaredMimeType: isPdf ? "application/pdf" : isPortfolio && !isPngPortfolio ? "image/jpeg" : "image/png",
-    bytes: isPdf ? pdf : isPortfolio && !isPngPortfolio ? jpeg : png,
+    fileName: isPdf ? `${suffix}.pdf` : `${suffix}.png`,
+    declaredMimeType: isPdf ? "application/pdf" : "image/png",
+    bytes: isPdf ? pdf : png,
     storage,
   });
   return {
     id: result.id,
-    kind: result.kind,
+    // `kind` (the narrow, still-accepted param) not `result.kind` (typed
+    // as the full, retired-values-included Prisma UploadKind enum).
+    kind,
     name: result.originalFileName,
     sizeBytes: result.sizeBytes,
     mimeType: result.detectedMimeType ?? "application/octet-stream",
@@ -126,19 +164,18 @@ async function validPayload(input: {
   suffix: string;
   primary?: string;
   secondary?: string;
-  portfolio?: "FILE" | "LINK" | "NONE";
-  portfolioMime?: "JPEG" | "PNG";
+  // Phase C - "Field Khusus Per Birdep" (ADR-043), extended Phase D
+  // (ADR-045) with portfolioUrl/budgetPlanUrl - both plain Google Drive
+  // URL strings now, not file uploads.
+  departmentFields?: {
+    komitMbti?: string;
+    adkesmahFocus?: "ADVOCACY" | "WELFARE";
+    portfolioUrl?: string;
+    budgetPlanUrl?: string;
+  };
 }): Promise<RegistrationPayload> {
   const cv = await upload(input.ownerToken, "CV", `cv-${input.suffix}`);
   const photo = await upload(input.ownerToken, "PHOTO", `photo-${input.suffix}`);
-  const portfolio = [] as RegistrationPayload["portfolio"];
-  if (input.portfolio === "FILE") {
-    const file = await upload(input.ownerToken, "PORTFOLIO", `portfolio-${input.suffix}`, input.portfolioMime);
-    portfolio.push({ type: "FILE", fileUploadId: file.id, title: "Karya Sintetis", sortOrder: 0 });
-  }
-  if (input.portfolio === "LINK") {
-    portfolio.push({ type: "EXTERNAL_LINK", externalUrl: "https://portfolio.example.test/synthetic", title: "Karya Sintetis", sortOrder: 0 });
-  }
   return {
     periodId,
     identity: {
@@ -158,7 +195,7 @@ async function validPayload(input: {
     ],
     uploads: { cv, photo, studentCard: null },
     essays: { organizationExperience: "Sintetis", contribution: "Sintetis", academicBalance: "Sintetis" },
-    portfolio,
+    departmentFields: input.departmentFields ?? {},
     consent: { truthful: true, processing: true, version: "DRAFT-CONSENT-TEST" },
   };
 }
@@ -176,32 +213,25 @@ describe.sequential("Phase 3 registration transaction", () => {
   });
 
   it.each([
-    ["Pilihan 1 JPG", medbrand, departmentB, "FILE", "JPEG"],
-    ["Pilihan 2 PNG", departmentA, medbrand, "FILE", "PNG"],
-    ["URL HTTPS", medbrand, departmentB, "LINK", undefined],
-  ] as const)("menerima Medbrand dengan %s", async (_, primary, secondary, portfolio, portfolioMime) => {
+    ["Pilihan 1", medbrand, departmentB],
+    ["Pilihan 2", departmentA, medbrand],
+  ] as const)("menerima Medbrand dengan link Google Drive di %s", async (_, primary, secondary) => {
     const suffix = `med-${randomUUID().slice(0, 8)}`;
     const ownerToken = `owner-${suffix}`;
-    const payload = await validPayload({ ownerToken, suffix, primary, secondary, portfolio, portfolioMime });
+    const payload = await validPayload({ ownerToken, suffix, primary, secondary, departmentFields: { portfolioUrl: driveUrl } });
     await expect(submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` })).resolves.toMatchObject({ registrationNumber: expect.any(String) });
   });
 
-  it("menerima file dan URL Medbrand sebagai dua item terpisah", async () => {
-    const suffix = `mixed-${randomUUID().slice(0, 8)}`;
+  it("menyimpan link portofolio Medbrand di candidate_supplemental_data", async () => {
+    const suffix = `med-store-${randomUUID().slice(0, 8)}`;
     const ownerToken = `owner-${suffix}`;
-    const payload = await validPayload({ ownerToken, suffix, primary: medbrand, portfolio: "FILE" });
-    payload.portfolio.push({
-      type: "EXTERNAL_LINK",
-      externalUrl: "https://portfolio.example.test/mixed",
-      title: "Tautan Sintetis",
-      sortOrder: 1,
-    });
+    const payload = await validPayload({ ownerToken, suffix, primary: medbrand, departmentFields: { portfolioUrl: driveUrl } });
     const result = await submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` });
-    const count = await pool.query(
-      `SELECT count(*) FROM candidate_portfolios p JOIN candidates c ON c.id = p."candidateId" WHERE c."registrationNumber" = $1`,
+    const row = await pool.query(
+      `SELECT s."portfolioUrl" FROM candidate_supplemental_data s JOIN candidates c ON c.id = s."candidateId" WHERE c."registrationNumber" = $1`,
       [result.registrationNumber],
     );
-    expect(Number(count.rows[0].count)).toBe(2);
+    expect(row.rows[0].portfolioUrl).toBe(driveUrl);
   });
 
   it("menolak upload tervalidasi milik draft lain", async () => {
@@ -215,11 +245,22 @@ describe.sequential("Phase 3 registration transaction", () => {
     })).rejects.toMatchObject({ code: "INVALID_UPLOAD_OWNERSHIP" });
   });
 
-  it("menolak Medbrand tanpa portofolio", async () => {
+  it("menolak Medbrand tanpa link portofolio Google Drive", async () => {
     const suffix = `missing-${randomUUID().slice(0, 8)}`;
     const ownerToken = `owner-${suffix}`;
-    const payload = await validPayload({ ownerToken, suffix, primary: medbrand, portfolio: "NONE" });
-    await expect(submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` })).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+    const payload = await validPayload({ ownerToken, suffix, primary: medbrand });
+    await expect(
+      submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED", fieldErrors: { "departmentFields.portfolioUrl": expect.any(String) } });
+  });
+
+  it("menolak Medbrand dengan link bukan Google Drive (authoritative, bukan hanya fast-fail)", async () => {
+    const suffix = `nondrive-${randomUUID().slice(0, 8)}`;
+    const ownerToken = `owner-${suffix}`;
+    const payload = await validPayload({ ownerToken, suffix, primary: medbrand, departmentFields: { portfolioUrl: "https://example.test/portofolio" } });
+    await expect(
+      submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED", fieldErrors: { "departmentFields.portfolioUrl": expect.any(String) } });
   });
 
   it("retry Idempotency-Key mengembalikan hasil awal tanpa duplikasi", async () => {
@@ -308,5 +349,182 @@ describe.sequential("Phase 3 registration transaction", () => {
       [tokenHash],
     );
     expect(await getRegistrationConfirmation(result.confirmationToken)).toBeNull();
+  });
+
+  describe("Phase A - jalur legislatif", () => {
+    it("menerima pasangan pilihan legislatif-legislatif dan menyimpan track LEGISLATIVE", async () => {
+      const suffix = `leg-${randomUUID().slice(0, 8)}`;
+      const ownerToken = `owner-${suffix}`;
+      const payload = await validPayload({ ownerToken, suffix, primary: legislativeA, secondary: legislativeB });
+      payload.track = "LEGISLATIVE";
+      const result = await submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` });
+      const row = await pool.query(`SELECT track FROM candidates WHERE "registrationNumber" = $1`, [result.registrationNumber]);
+      expect(row.rows[0].track).toBe("LEGISLATIVE");
+    });
+
+    it("menerima pasangan legislatif-legislatif tanpa field track eksplisit ditolak (default EXECUTIVE tidak cocok)", async () => {
+      // Documents the deliberate default: omitting `track` defaults to
+      // EXECUTIVE (backward compat for the unmodified form), so a
+      // legislative-legislative pair submitted without declaring track is
+      // still rejected - caught by validateRegistrationPayload's
+      // declared-vs-actual check (fieldErrors.track), which submitRegistration
+      // runs before ever reaching submit.ts's own CROSS_TRACK_CHOICE guard.
+      const suffix = `leg-notrack-${randomUUID().slice(0, 8)}`;
+      const ownerToken = `owner-${suffix}`;
+      const payload = await validPayload({ ownerToken, suffix, primary: legislativeA, secondary: legislativeB });
+      await expect(
+        submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+      ).rejects.toMatchObject({ code: "VALIDATION_FAILED", fieldErrors: { track: expect.any(String) } });
+    });
+
+    it("menolak pasangan pilihan lintas jalur (satu eksekutif, satu legislatif)", async () => {
+      const suffix = `cross-${randomUUID().slice(0, 8)}`;
+      const ownerToken = `owner-${suffix}`;
+      const payload = await validPayload({ ownerToken, suffix, primary: departmentA, secondary: legislativeA });
+      await expect(
+        submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+      ).rejects.toMatchObject({
+        code: "VALIDATION_FAILED",
+        fieldErrors: { "choices.1.departmentId": expect.any(String) },
+      });
+    });
+
+    it("menolak field track yang dideklarasikan tidak sesuai jalur Birdep sebenarnya", async () => {
+      const suffix = `mismatch-${randomUUID().slice(0, 8)}`;
+      const ownerToken = `owner-${suffix}`;
+      const payload = await validPayload({ ownerToken, suffix, primary: legislativeA, secondary: legislativeB });
+      payload.track = "EXECUTIVE";
+      await expect(
+        submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+      ).rejects.toMatchObject({ code: "VALIDATION_FAILED", fieldErrors: { track: expect.any(String) } });
+    });
+
+    it("submission eksekutif lama tanpa field track tetap berhasil (kompatibel form yang belum diubah)", async () => {
+      const suffix = `legacy-${randomUUID().slice(0, 8)}`;
+      const ownerToken = `owner-${suffix}`;
+      const payload = await validPayload({ ownerToken, suffix });
+      expect(payload.track).toBeUndefined();
+      const result = await submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` });
+      const row = await pool.query(`SELECT track FROM candidates WHERE "registrationNumber" = $1`, [result.registrationNumber]);
+      expect(row.rows[0].track).toBe("EXECUTIVE");
+    });
+  });
+
+  describe("Phase C - field khusus per Birdep", () => {
+    it("menolak Komit tanpa MBTI (authoritative, bukan hanya fast-fail)", async () => {
+      const suffix = `komit-missing-${randomUUID().slice(0, 8)}`;
+      const ownerToken = `owner-${suffix}`;
+      const payload = await validPayload({ ownerToken, suffix, primary: komit });
+      await expect(
+        submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+      ).rejects.toMatchObject({ code: "VALIDATION_FAILED", fieldErrors: { "departmentFields.komitMbti": expect.any(String) } });
+    });
+
+    it("menerima Komit dengan MBTI dan menyimpan candidate_supplemental_data ternormalisasi uppercase", async () => {
+      const suffix = `komit-ok-${randomUUID().slice(0, 8)}`;
+      const ownerToken = `owner-${suffix}`;
+      const payload = await validPayload({
+        ownerToken, suffix, primary: komit,
+        departmentFields: { komitMbti: "intj" },
+      });
+      const result = await submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` });
+      const row = await pool.query(
+        `SELECT s."komitMbti", s."adkesmahFocus" FROM candidate_supplemental_data s
+         JOIN candidates c ON c.id = s."candidateId" WHERE c."registrationNumber" = $1`,
+        [result.registrationNumber],
+      );
+      expect(row.rows[0]).toMatchObject({ komitMbti: "INTJ", adkesmahFocus: null });
+    });
+
+    it("menolak Adkesmah tanpa bidang fokus, menerima dengan salah satunya", async () => {
+      const missingSuffix = `adkesmah-missing-${randomUUID().slice(0, 8)}`;
+      const missingOwner = `owner-${missingSuffix}`;
+      const missingPayload = await validPayload({ ownerToken: missingOwner, suffix: missingSuffix, primary: adkesmah });
+      await expect(
+        submitRegistration({ payload: missingPayload, ownerToken: missingOwner, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+      ).rejects.toMatchObject({ code: "VALIDATION_FAILED", fieldErrors: { "departmentFields.adkesmahFocus": expect.any(String) } });
+
+      const suffix = `adkesmah-ok-${randomUUID().slice(0, 8)}`;
+      const ownerToken = `owner-${suffix}`;
+      const payload = await validPayload({
+        ownerToken, suffix, primary: adkesmah,
+        departmentFields: { adkesmahFocus: "WELFARE" },
+      });
+      const result = await submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` });
+      const row = await pool.query(
+        `SELECT s."adkesmahFocus" FROM candidate_supplemental_data s
+         JOIN candidates c ON c.id = s."candidateId" WHERE c."registrationNumber" = $1`,
+        [result.registrationNumber],
+      );
+      expect(row.rows[0].adkesmahFocus).toBe("WELFARE");
+    });
+
+    it("menolak Badan Media dan Branding (legislatif) tanpa link portofolio, menerima dengan link Google Drive", async () => {
+      const missingSuffix = `badmedbrnd-missing-${randomUUID().slice(0, 8)}`;
+      const missingOwner = `owner-${missingSuffix}`;
+      const missingPayload = await validPayload({
+        ownerToken: missingOwner, suffix: missingSuffix,
+        primary: legislativeA, secondary: badmedbrndReal,
+      });
+      missingPayload.track = "LEGISLATIVE";
+      await expect(
+        submitRegistration({ payload: missingPayload, ownerToken: missingOwner, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+      ).rejects.toMatchObject({ code: "VALIDATION_FAILED", fieldErrors: { "departmentFields.portfolioUrl": expect.any(String) } });
+
+      const suffix = `badmedbrnd-ok-${randomUUID().slice(0, 8)}`;
+      const ownerToken = `owner-${suffix}`;
+      const payload = await validPayload({
+        ownerToken, suffix,
+        primary: legislativeA, secondary: badmedbrndReal,
+        departmentFields: { portfolioUrl: driveUrl },
+      });
+      payload.track = "LEGISLATIVE";
+      await expect(
+        submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+      ).resolves.toMatchObject({ registrationNumber: expect.any(String) });
+    });
+
+    it("menerima Komisi Anggaran tanpa RAB, dan menyimpan link RAB Google Drive saat dilampirkan", async () => {
+      const withoutSuffix = `komangg-none-${randomUUID().slice(0, 8)}`;
+      const withoutOwner = `owner-${withoutSuffix}`;
+      const withoutPayload = await validPayload({
+        ownerToken: withoutOwner, suffix: withoutSuffix,
+        primary: legislativeA, secondary: komanggar,
+      });
+      withoutPayload.track = "LEGISLATIVE";
+      await expect(
+        submitRegistration({ payload: withoutPayload, ownerToken: withoutOwner, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+      ).resolves.toMatchObject({ registrationNumber: expect.any(String) });
+
+      const suffix = `komangg-link-${randomUUID().slice(0, 8)}`;
+      const ownerToken = `owner-${suffix}`;
+      const payload = await validPayload({
+        ownerToken, suffix,
+        primary: legislativeA, secondary: komanggar,
+        departmentFields: { budgetPlanUrl: driveUrl },
+      });
+      payload.track = "LEGISLATIVE";
+      const result = await submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` });
+      const row = await pool.query(
+        `SELECT s."budgetPlanUrl" FROM candidate_supplemental_data s
+         JOIN candidates c ON c.id = s."candidateId" WHERE c."registrationNumber" = $1`,
+        [result.registrationNumber],
+      );
+      expect(row.rows[0].budgetPlanUrl).toBe(driveUrl);
+    });
+
+    it("menolak RAB Komisi Anggaran dengan link non-Google-Drive (authoritative)", async () => {
+      const suffix = `komangg-baddrive-${randomUUID().slice(0, 8)}`;
+      const ownerToken = `owner-${suffix}`;
+      const payload = await validPayload({
+        ownerToken, suffix,
+        primary: legislativeA, secondary: komanggar,
+        departmentFields: { budgetPlanUrl: "https://example.test/rab.pdf" },
+      });
+      payload.track = "LEGISLATIVE";
+      await expect(
+        submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+      ).rejects.toMatchObject({ code: "VALIDATION_FAILED", fieldErrors: { "departmentFields.budgetPlanUrl": expect.any(String) } });
+    });
   });
 });

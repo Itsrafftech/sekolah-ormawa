@@ -21,7 +21,7 @@ export default async function globalSetup() {
     await pool.query(`
       TRUNCATE TABLE
         password_reset_tokens, auth_rate_limits, rate_limits, sessions, accounts, users,
-        registration_confirmations, candidate_portfolios, candidate_choices,
+        registration_confirmations, candidate_supplemental_data, candidate_choices,
         file_uploads, candidates, email_outbox, idempotency_records, audit_logs,
         period_departments, study_programs, recruitment_periods,
         role_permissions, permissions, departments, roles

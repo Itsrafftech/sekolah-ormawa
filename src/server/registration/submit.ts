@@ -241,6 +241,30 @@ export async function submitRegistration(input: {
         );
       }
 
+      // Phase A - "Jalur Legislatif": authoritative server-side guard
+      // against fresh DB data (validateRegistrationPayload's own check is
+      // a fast-fail against a client-supplied config snapshot, not a
+      // substitute for this). Both choices must share one track; if the
+      // client declared a track explicitly, it must agree too - defaults
+      // to EXECUTIVE when omitted so the existing, track-unaware form
+      // keeps submitting successfully unchanged.
+      const departmentById = new Map(
+        selectedDepartments.map(({ department }) => [department.id, department]),
+      );
+      const choiceTracks = payload.choices.map(
+        (choice) => departmentById.get(choice.departmentId)!.track,
+      );
+      const declaredTrack = payload.track ?? "EXECUTIVE";
+      if (choiceTracks[0] !== choiceTracks[1] || choiceTracks[0] !== declaredTrack) {
+        throw new RegistrationSubmissionError(
+          "Kedua pilihan Birdep harus berasal dari jalur yang sama.",
+          422,
+          "CROSS_TRACK_CHOICE",
+          { "choices.1.departmentId": "Pilihan Birdep harus berasal dari jalur (Eksekutif/Legislatif) yang sama." },
+        );
+      }
+      const track = choiceTracks[0];
+
       const studyProgram = await transaction.studyProgram.findFirst({
         where: {
           id: payload.identity.studyProgramId,
@@ -257,16 +281,11 @@ export async function submitRegistration(input: {
         );
       }
 
-      const documentIds = [
+      const allUploadIds = [
         payload.uploads.cv?.id,
         payload.uploads.photo?.id,
         payload.uploads.studentCard?.id,
       ].filter((value): value is string => Boolean(value));
-      const portfolioFileIds = payload.portfolio
-        .filter((item) => item.type === "FILE")
-        .map((item) => item.fileUploadId)
-        .filter((value): value is string => Boolean(value));
-      const allUploadIds = [...documentIds, ...portfolioFileIds];
       if (new Set(allUploadIds).size !== allUploadIds.length) {
         throw new RegistrationSubmissionError(
           "Satu upload tidak boleh digunakan untuk lebih dari satu item.",
@@ -298,8 +317,7 @@ export async function submitRegistration(input: {
       if (
         !payload.uploads.cv || kindById.get(payload.uploads.cv.id) !== "CV" ||
         !payload.uploads.photo || kindById.get(payload.uploads.photo.id) !== "PHOTO" ||
-        (payload.uploads.studentCard && kindById.get(payload.uploads.studentCard.id) !== "STUDENT_CARD") ||
-        portfolioFileIds.some((id) => kindById.get(id) !== "PORTFOLIO")
+        (payload.uploads.studentCard && kindById.get(payload.uploads.studentCard.id) !== "STUDENT_CARD")
       ) {
         throw new RegistrationSubmissionError(
           "Jenis upload tidak sesuai field dokumen.",
@@ -308,15 +326,43 @@ export async function submitRegistration(input: {
         );
       }
 
-      const medbrandSelected = selectedDepartments.some(
-        ({ department }) => department.code === "MEDBRAND",
+      // Phase C - "Field Khusus Per Birdep" (ADR-043): BADMEDBRND
+      // legislatif shares Medbrand eksekutif's exact same portfolio
+      // requirement - both authoritative checks against fresh DB data.
+      // Phase D (ADR-045): the field itself is a Google Drive URL now,
+      // not an uploaded file.
+      const portfolioRequired = selectedDepartments.some(
+        ({ department }) => department.code === "MEDBRAND" || department.code === "BADMEDBRND",
       );
-      if (medbrandSelected && payload.portfolio.length === 0) {
+      if (portfolioRequired && !payload.departmentFields.portfolioUrl) {
         throw new RegistrationSubmissionError(
-          "Portofolio wajib untuk pilihan Media Branding.",
+          "Link Google Drive portofolio wajib untuk pilihan Media Branding.",
           422,
           "PORTFOLIO_REQUIRED",
-          { portfolio: "Tambahkan minimal satu file atau tautan HTTPS." },
+          { "departmentFields.portfolioUrl": "Isi link Google Drive portofolio kamu." },
+        );
+      }
+
+      // Phase C - "Field Khusus Per Birdep" (ADR-043): MBTI (Komit) dan
+      // fokus (Adkesmah) wajib hanya jika Birdep terkait benar-benar
+      // dipilih - dicek ulang di sini terhadap data DB segar, bukan cuma
+      // mengandalkan validateRegistrationPayload's fast-fail di atas.
+      const komitSelected = selectedDepartments.some(({ department }) => department.code === "KOMIT");
+      if (komitSelected && !payload.departmentFields.komitMbti) {
+        throw new RegistrationSubmissionError(
+          "Tipe MBTI wajib untuk pilihan Biro Kolaborasi dan Kemitraan.",
+          422,
+          "MBTI_REQUIRED",
+          { "departmentFields.komitMbti": "Isi tipe MBTI kamu." },
+        );
+      }
+      const adkesmahSelected = selectedDepartments.some(({ department }) => department.code === "ADKESMAH");
+      if (adkesmahSelected && !payload.departmentFields.adkesmahFocus) {
+        throw new RegistrationSubmissionError(
+          "Bidang fokus wajib untuk pilihan Departemen Advokasi dan Kesejahteraan Mahasiswa.",
+          422,
+          "ADKESMAH_FOCUS_REQUIRED",
+          { "departmentFields.adkesmahFocus": "Pilih bidang fokus kamu." },
         );
       }
 
@@ -326,6 +372,7 @@ export async function submitRegistration(input: {
         data: {
           periodId: period.id,
           registrationNumber,
+          track,
           name: payload.identity.name.trim(),
           nim: payload.identity.nim.trim(),
           normalizedNim: normalizeNim(payload.identity.nim),
@@ -368,22 +415,22 @@ export async function submitRegistration(input: {
         secondaryDeptId: payload.choices[1].departmentId,
       });
 
-      if (payload.portfolio.length > 0) {
-        await transaction.candidatePortfolio.createMany({
-          data: payload.portfolio.map((item, index) => ({
+      // Phase C - "Field Khusus Per Birdep" (ADR-043), extended Phase D
+      // (ADR-045) with portfolioUrl/budgetPlanUrl: one row only when at
+      // least one of the four fields was actually submitted - "don't
+      // write rows nobody needed".
+      if (
+        payload.departmentFields.komitMbti || payload.departmentFields.adkesmahFocus ||
+        payload.departmentFields.portfolioUrl || payload.departmentFields.budgetPlanUrl
+      ) {
+        await transaction.candidateSupplementalData.create({
+          data: {
             candidateId: candidate.id,
-            type: item.type,
-            fileUploadId: item.type === "FILE" ? item.fileUploadId : null,
-            externalUrl:
-              item.type === "EXTERNAL_LINK" && item.externalUrl
-                ? new URL(item.externalUrl).toString()
-                : null,
-            title: item.title?.trim() || null,
-            description: item.description?.trim() || null,
-            applicantRole: item.applicantRole?.trim() || null,
-            creationYear: item.creationYear ?? null,
-            sortOrder: item.sortOrder ?? index,
-          })),
+            komitMbti: payload.departmentFields.komitMbti ?? null,
+            adkesmahFocus: payload.departmentFields.adkesmahFocus ?? null,
+            portfolioUrl: payload.departmentFields.portfolioUrl ?? null,
+            budgetPlanUrl: payload.departmentFields.budgetPlanUrl ?? null,
+          },
         });
       }
 
@@ -429,7 +476,8 @@ export async function submitRegistration(input: {
           afterJson: {
             periodId: period.id,
             registrationNumber,
-            portfolioItemCount: payload.portfolio.length,
+            hasPortfolioUrl: Boolean(payload.departmentFields.portfolioUrl),
+            hasBudgetPlanUrl: Boolean(payload.departmentFields.budgetPlanUrl),
           },
         },
       });

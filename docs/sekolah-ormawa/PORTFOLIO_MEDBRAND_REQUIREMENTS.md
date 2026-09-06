@@ -1,5 +1,7 @@
 # Kontrak Portofolio Media Branding
 
+> **SUPERSEDED (Phase D, ADR-045)**: seluruh dokumen di bawah ini mendeskripsikan mekanisme Phase 3 asli (upload file privat + `CandidatePortfolio`, multi-item). Keputusan pemilik proyek di Phase D mengganti mekanisme ini sepenuhnya untuk Medbrand/Badmedbrnd/RAB Komanggar menjadi satu field teks URL Google Drive (`CandidateSupplementalData.portfolioUrl`/`budgetPlanUrl`) - `CandidatePortfolio` sudah di-drop dari schema. Dokumen ini dipertahankan sebagai referensi historis keputusan Phase 3, bukan sebagai deskripsi perilaku saat ini - lihat ADR-043/ADR-045 di `DECISIONS.md` dan laporan "Hasil Phase C"/"Hasil Phase D" di `PHASE_STATUS.md` untuk keadaan terkini.
+
 ## Status dan batas fase
 
 Dokumen ini mengunci requirement produk untuk Biro Media Branding. Phase 3 telah mengimplementasikan input conditional, file privat/URL HTTPS, validasi submit, metadata, migration, serta pengujiannya. Preview/download oleh PJ tetap pekerjaan Phase 5.

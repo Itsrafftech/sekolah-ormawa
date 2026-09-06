@@ -5,6 +5,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import {
   ConfigStatus,
   PrismaClient,
+  Track,
   UnitType,
 } from "../src/generated/prisma/client";
 import { hashPassword } from "../src/lib/auth/password";
@@ -121,6 +122,20 @@ const departmentFixtures = [
   ],
 ] as const;
 
+// Phase A - "Jalur Legislatif". Legislative units use "Komisi"/"Badan"
+// naming, not the executive branch's BPH/Biro/Departemen convention - no
+// new UnitType value was requested for this phase, so these reuse the
+// closest existing analogs: Komisi (a focused working unit) -> DEPARTEMEN,
+// Badan (a broader supporting unit) -> BIRO. Revisit if a future phase
+// wants legislative-specific UnitType values instead.
+const legislativeDepartmentFixtures = [
+  ["KOMLEG", "Komisi Legislasi", "Komleg", UnitType.DEPARTEMEN],
+  ["KOMANGG", "Komisi Anggaran", "Komanggar", UnitType.DEPARTEMEN],
+  ["KOMPENG", "Komisi Pengawasan", "Kompeng", UnitType.DEPARTEMEN],
+  ["BADINTEKST", "Badan Internal dan Eksternal", "Badintekst", UnitType.BIRO],
+  ["BADMEDBRND", "Badan Media dan Branding", "Badmedbrnd", UnitType.BIRO],
+] as const;
+
 const FIXTURE_SUPER_ADMIN_ID = "00000000-0000-4000-8000-000000000001";
 const FIXTURE_DEPT_PJ_ID = "00000000-0000-4000-8000-000000000002";
 const FIXTURE_PERIOD_ID = "00000000-0000-4000-8000-000000000063";
@@ -181,6 +196,7 @@ async function seed() {
         name,
         shortName,
         unitType,
+        track: Track.EXECUTIVE,
         sortOrder: index,
         configStatus: ConfigStatus.DRAFT,
       },
@@ -189,7 +205,36 @@ async function seed() {
         name,
         shortName,
         unitType,
+        track: Track.EXECUTIVE,
         sortOrder: index,
+        configStatus: ConfigStatus.DRAFT,
+        description: "Fixture draft - wajib diverifikasi sebelum publikasi.",
+      },
+    });
+  }
+
+  // Phase A - "Jalur Legislatif". Continues sortOrder after the 13
+  // executive fixtures above.
+  for (const [index, [code, name, shortName, unitType]] of legislativeDepartmentFixtures.entries()) {
+    await prisma.department.upsert({
+      where: { code },
+      update: {
+        name,
+        shortName,
+        unitType,
+        track: Track.LEGISLATIVE,
+        sortOrder: departmentFixtures.length + index,
+        isActive: true,
+        configStatus: ConfigStatus.DRAFT,
+      },
+      create: {
+        code,
+        name,
+        shortName,
+        unitType,
+        track: Track.LEGISLATIVE,
+        sortOrder: departmentFixtures.length + index,
+        isActive: true,
         configStatus: ConfigStatus.DRAFT,
         description: "Fixture draft - wajib diverifikasi sebelum publikasi.",
       },
@@ -219,10 +264,15 @@ async function seed() {
   });
 
   const departments = await prisma.department.findMany({
-    select: { id: true, code: true },
+    select: { id: true, code: true, track: true },
   });
 
   for (const department of departments) {
+    // Phase A - "Jalur Legislatif": the 5 new legislative units are seeded
+    // ready to receive applications immediately (product decision); the
+    // 13 executive fixtures keep this script's original closed-by-default
+    // baseline unchanged.
+    const acceptsApplications = department.track === Track.LEGISLATIVE;
     await prisma.periodDepartment.upsert({
       where: {
         periodId_departmentId: {
@@ -231,13 +281,13 @@ async function seed() {
         },
       },
       update: {
-        acceptsApplications: false,
+        acceptsApplications,
         quota: null,
       },
       create: {
         periodId: period.id,
         departmentId: department.id,
-        acceptsApplications: false,
+        acceptsApplications,
         quota: null,
       },
     });
@@ -364,7 +414,7 @@ async function seed() {
   });
 
   console.log(
-    "Seed sintetis selesai: role, permission, 13 unit draft, periode A63 draft, prodi fixture, dan 2 akun fixture.",
+    "Seed sintetis selesai: role, permission, 13 unit eksekutif + 5 unit legislatif draft, periode A63 draft, prodi fixture, dan 2 akun fixture.",
   );
 }
 

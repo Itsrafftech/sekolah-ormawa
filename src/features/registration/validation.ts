@@ -29,11 +29,18 @@ export function normalizePhone(value: string): string {
   return compact;
 }
 
-export function isValidHttpsPortfolioUrl(value: string, maxLength: number): boolean {
+// Phase D - "Portofolio via URL Google Drive" (ADR-045). Deliberately
+// stricter than a generic HTTPS URL check (which is what this function
+// used to be, back when portfolio items could be any HTTPS link) -
+// requires the Google Drive host specifically, since that's the only
+// sharing flow the "Anyone with the link can view" instruction shown to
+// candidates actually applies to.
+export function isValidGoogleDriveUrl(value: string, maxLength: number): boolean {
   if (!value || value.length > maxLength) return false;
   try {
     const url = new URL(value);
-    return url.protocol === "https:" && Boolean(url.hostname) && !url.username && !url.password;
+    return url.protocol === "https:" && url.hostname === "drive.google.com" &&
+      !url.username && !url.password;
   } catch {
     return false;
   }
@@ -41,25 +48,28 @@ export function isValidHttpsPortfolioUrl(value: string, maxLength: number): bool
 
 const uploadReferenceSchema = z.object({
   id: z.uuid(),
-  kind: z.enum(["CV", "PHOTO", "STUDENT_CARD", "PORTFOLIO"]),
+  kind: z.enum(["CV", "PHOTO", "STUDENT_CARD"]),
   name: z.string().min(1).max(255),
   sizeBytes: z.number().int().positive(),
   mimeType: z.string().min(1).max(127),
 });
 
-const portfolioSchema = z.object({
-  type: z.enum(["FILE", "EXTERNAL_LINK"]),
-  fileUploadId: z.uuid().optional(),
-  externalUrl: z.string().optional(),
-  title: z.string().trim().max(160).optional(),
-  description: z.string().trim().max(1000).optional(),
-  applicantRole: z.string().trim().max(160).optional(),
-  creationYear: z.number().int().min(1900).max(2200).optional(),
-  sortOrder: z.number().int().min(0),
-});
+// Phase C - "Field Khusus Per Birdep". Format valid: 4 huruf, kombinasi
+// I/E + N/S + T/F + J/P (16 tipe MBTI). Normalisasi uppercase terjadi di
+// sini juga (bukan cuma di UI) karena payload tidak boleh dipercaya
+// datang sudah ternormalisasi dari client.
+const mbtiSchema = z
+  .string()
+  .trim()
+  .transform((value) => value.toUpperCase())
+  .refine((value) => /^[EI][NS][TF][JP]$/u.test(value), "Format MBTI tidak valid (contoh: INTJ, ENFP, ISTP).");
 
 const payloadSchema = z.object({
   periodId: z.uuid(),
+  // Phase A - "Jalur Legislatif": optional since the form doesn't send it
+  // yet - validateRegistrationPayload below treats a missing value as
+  // EXECUTIVE, matching submit.ts's own default.
+  track: z.enum(["EXECUTIVE", "LEGISLATIVE"]).optional(),
   identity: z.object({
     name: z.string().trim().min(2).max(160),
     nim: z.string().trim().min(3).max(40),
@@ -85,7 +95,21 @@ const payloadSchema = z.object({
     contribution: z.string().trim(),
     academicBalance: z.string().trim(),
   }),
-  portfolio: z.array(portfolioSchema),
+  // Phase C - "Field Khusus Per Birdep". All optional at the schema level
+  // (requiredness depends on which Birdep was chosen - checked below,
+  // same pattern as track), but komitMbti's format is always checked when
+  // present regardless of department. portfolioUrl/budgetPlanUrl (Phase D,
+  // ADR-045) are plain trimmed strings here - their Google Drive URL
+  // format and max length depend on config.portfolioUrlMaxLength, which
+  // isn't available at schema-definition time, so that check happens in
+  // the business-logic section below (same pattern the old EXTERNAL_LINK
+  // portfolio item validation used).
+  departmentFields: z.object({
+    komitMbti: mbtiSchema.optional(),
+    adkesmahFocus: z.enum(["ADVOCACY", "WELFARE"]).optional(),
+    portfolioUrl: z.string().trim().optional(),
+    budgetPlanUrl: z.string().trim().optional(),
+  }),
   consent: z.object({
     // Custom messages: without these, a Zod structural failure here (e.g.
     // an unchecked box reaching submit()) surfaces Zod's raw default
@@ -130,6 +154,26 @@ export function validateRegistrationPayload(
     errors["choices.1.departmentId"] = "Pilihan Birdep harus berbeda.";
   }
 
+  // Phase A - "Jalur Legislatif": both choices must belong to the same
+  // track. This is the fast-fail/field-error copy of the check; submit.ts
+  // re-validates against fresh DB data as the authoritative server-side
+  // guard (config.departments here is a client-supplied snapshot).
+  const choiceTracks = data.choices.map(
+    (choice) => config.departments.find((item) => item.id === choice.departmentId)?.track,
+  );
+  if (
+    choiceTracks[0] && choiceTracks[1] && choiceTracks[0] !== choiceTracks[1]
+  ) {
+    errors["choices.1.departmentId"] = "Pilihan Birdep harus berasal dari jalur (Eksekutif/Legislatif) yang sama.";
+  }
+  const effectiveTrack = data.track ?? "EXECUTIVE";
+  if (
+    choiceTracks[0] && choiceTracks[1] && choiceTracks[0] === choiceTracks[1] &&
+    choiceTracks[0] !== effectiveTrack
+  ) {
+    errors.track = "Field track tidak sesuai dengan jalur Birdep yang dipilih.";
+  }
+
   data.choices.forEach((choice, index) => {
     if (countWords(choice.motivation) < config.motivationMinWords) {
       errors[`choices.${index}.motivation`] =
@@ -151,27 +195,39 @@ export function validateRegistrationPayload(
   const selectedCodes = data.choices.map(
     (choice) => config.departments.find((item) => item.id === choice.departmentId)?.code,
   );
-  const requiresPortfolio = selectedCodes.includes("MEDBRAND");
-  if (requiresPortfolio && data.portfolio.length === 0) {
-    errors.portfolio = "Portofolio wajib jika Media Branding dipilih.";
+  // Phase C - "Field Khusus Per Birdep" (ADR-043): BADMEDBRND legislatif
+  // shares Medbrand eksekutif's exact same portfolio requirement. Phase D
+  // (ADR-045): the field itself is now a Google Drive URL, not a file.
+  const requiresPortfolio = selectedCodes.includes("MEDBRAND") || selectedCodes.includes("BADMEDBRND");
+  if (requiresPortfolio && !data.departmentFields.portfolioUrl) {
+    errors["departmentFields.portfolioUrl"] = "Link Google Drive portofolio wajib jika Media Branding dipilih.";
+  } else if (
+    data.departmentFields.portfolioUrl &&
+    !isValidGoogleDriveUrl(data.departmentFields.portfolioUrl, config.portfolioUrlMaxLength)
+  ) {
+    errors["departmentFields.portfolioUrl"] = "Link harus berupa URL Google Drive yang valid (https://drive.google.com/...).";
   }
 
-  const fileItems = data.portfolio.filter((item) => item.type === "FILE");
-  if (fileItems.length > config.portfolioMaxFiles) {
-    errors.portfolio = `Maksimum ${config.portfolioMaxFiles} file portofolio.`;
+  // Phase C - "Field Khusus Per Birdep": each field is required only when
+  // the candidate actually picked the department it belongs to - this is
+  // the fast-fail copy, same pattern as requiresPortfolio above; submit.ts
+  // re-derives the same requirement from fresh DB data as the
+  // authoritative guard.
+  if (selectedCodes.includes("KOMIT") && !data.departmentFields.komitMbti) {
+    errors["departmentFields.komitMbti"] = "Tipe MBTI wajib diisi karena Biro Kolaborasi dan Kemitraan dipilih.";
   }
-  data.portfolio.forEach((item, index) => {
-    if (item.type === "FILE" && (!item.fileUploadId || item.externalUrl)) {
-      errors[`portfolio.${index}`] = "Item file harus merujuk satu upload tanpa URL.";
-    }
-    if (
-      item.type === "EXTERNAL_LINK" &&
-      (!item.externalUrl || item.fileUploadId ||
-        !isValidHttpsPortfolioUrl(item.externalUrl, config.portfolioUrlMaxLength))
-    ) {
-      errors[`portfolio.${index}`] = "Tautan portofolio harus berupa URL HTTPS yang valid.";
-    }
-  });
+  if (selectedCodes.includes("ADKESMAH") && !data.departmentFields.adkesmahFocus) {
+    errors["departmentFields.adkesmahFocus"] =
+      "Bidang fokus wajib dipilih karena Departemen Advokasi dan Kesejahteraan Mahasiswa dipilih.";
+  }
+  // Komanggar's RAB stays optional ("nilai plus") - only the format is
+  // checked when a value is present, no requiredness check.
+  if (
+    data.departmentFields.budgetPlanUrl &&
+    !isValidGoogleDriveUrl(data.departmentFields.budgetPlanUrl, config.portfolioUrlMaxLength)
+  ) {
+    errors["departmentFields.budgetPlanUrl"] = "Link harus berupa URL Google Drive yang valid (https://drive.google.com/...).";
+  }
 
   return Object.keys(errors).length > 0
     ? { success: false, errors }

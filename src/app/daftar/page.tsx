@@ -6,6 +6,7 @@ import { RegistrationForm } from "@/components/registration/registration-form";
 import { SiteFooter } from "@/components/public/site-footer";
 import { SiteHeader } from "@/components/public/site-header";
 import { createPublicMetadata } from "@/lib/public/metadata";
+import { listDepartmentsByTrack } from "@/server/departments/public";
 import { getRegistrationAvailability } from "@/server/registration/config";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,13 @@ export const metadata: Metadata = {
 
 export default async function RegistrationPage() {
   const availability = await getRegistrationAvailability();
+  // Phase B - "Jalur Legislatif": Step 0 (pilih jalur) and Step 2's
+  // dropdown need every active department per track regardless of this
+  // period's acceptsApplications (unlike availability.config.departments,
+  // which is period-scoped) - same server function GET /api/departments
+  // exposes (src/server/departments/public.ts), called directly here
+  // rather than the page self-fetching its own API route.
+  const departmentsByTrack = await listDepartmentsByTrack();
 
   return (
     <div className="public-site registration-site">
@@ -31,7 +39,7 @@ export default async function RegistrationPage() {
       <SiteHeader />
       <main className="registration-main" id="main-content">
         {availability.state === "OPEN" ? (
-          <RegistrationForm config={availability.config} />
+          <RegistrationForm config={availability.config} departmentsByTrack={departmentsByTrack} />
         ) : (
           <section className="registration-closed" aria-labelledby="registration-closed-title">
             <div className="registration-closed__mark" aria-hidden="true">

@@ -46,27 +46,29 @@ model RolePermission {
 }
 
 model Department {
-  id                String               @id @default(uuid())
-  code              String               @unique
-  name              String
-  shortName         String
-  unitType          UnitType
-  description       String?
-  sortOrder         Int                  @default(0)
-  isActive          Boolean              @default(true)
-  configStatus      ConfigStatus         @default(DRAFT)
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  candidateChoices  CandidateChoice[]
-  locks             CandidateLock[]
-  placements        CandidatePlacement[]
-  notes             DepartmentNote[]
-  periodDepartments PeriodDepartment[]
-  users             User[]
-  selectionsAsPrimary   SelectionDecision[] @relation("SelectionPrimary")
-  selectionsAsSecondary SelectionDecision[] @relation("SelectionSecondary")
+  id                    String               @id @default(uuid())
+  code                  String               @unique
+  name                  String
+  shortName             String
+  unitType              UnitType
+  track                 Track                @default(EXECUTIVE)
+  description           String?
+  sortOrder             Int                  @default(0)
+  isActive              Boolean              @default(true)
+  configStatus          ConfigStatus         @default(DRAFT)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  candidateChoices      CandidateChoice[]
+  locks                 CandidateLock[]
+  placements            CandidatePlacement[]
+  notes                 DepartmentNote[]
+  periodDepartments     PeriodDepartment[]
+  users                 User[]
+  selectionsAsPrimary   SelectionDecision[]  @relation("SelectionPrimary")
+  selectionsAsSecondary SelectionDecision[]  @relation("SelectionSecondary")
 
   @@index([isActive, sortOrder])
+  @@index([track, isActive, sortOrder])
   @@map("departments")
 }
 
@@ -191,23 +193,23 @@ model PasswordResetToken {
 }
 
 model RecruitmentPeriod {
-  id                   String             @id @default(uuid())
-  code                 String             @unique
+  id                   String              @id @default(uuid())
+  code                 String              @unique
   name                 String
-  status               PeriodStatus       @default(DRAFT)
-  configStatus         ConfigStatus       @default(DRAFT)
-  cohortCode           Int                @default(63)
+  status               PeriodStatus        @default(DRAFT)
+  configStatus         ConfigStatus        @default(DRAFT)
+  cohortCode           Int                 @default(63)
   entryYear            Int?
   registrationPrefix   String?
-  registrationSequence Int                @default(0)
+  registrationSequence Int                 @default(0)
   opensAt              DateTime?
   closesAt             DateTime?
-  choice2Required      Boolean            @default(true)
-  allowUnlock          Boolean            @default(false)
+  choice2Required      Boolean             @default(true)
+  allowUnlock          Boolean             @default(false)
   consentVersion       String?
   retentionDays        Int?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
   candidates           Candidate[]
   uploads              FileUpload[]
   departments          PeriodDepartment[]
@@ -267,6 +269,16 @@ model Candidate {
   essayContribution  String
   essayBalance       String
   status             CandidateStatus            @default(SUBMITTED)
+  // Required, no @default on purpose (Phase A - "Jalur Legislatif"): the
+  // submit API (submit.ts) always derives this from the candidate's own
+  // chosen departments' track (both choices are validated to share one
+  // track before this is ever set), so every application code path -
+  // Prisma-generated `create()` calls included - is forced to supply it
+  // explicitly, with no DB-level default to quietly paper over a missing
+  // value. The migration adds this nullable, backfills existing rows to
+  // EXECUTIVE, then sets NOT NULL - every raw-SQL test fixture that
+  // creates a candidate was updated to pass `track` explicitly too.
+  track              Track
   consentVersion     String?
   consentedAt        DateTime?
   submittedAt        DateTime                   @default(now())
@@ -286,7 +298,7 @@ model Candidate {
   locks              CandidateLock[]
   placement          CandidatePlacement?
   selectionDecision  SelectionDecision?
-  portfolios         CandidatePortfolio[]
+  supplementalData   CandidateSupplementalData?
   period             RecruitmentPeriod          @relation(fields: [periodId], references: [id])
   studyProgram       StudyProgram               @relation(fields: [studyProgramId], references: [id])
   notes              DepartmentNote[]
@@ -319,50 +331,67 @@ model CandidateChoice {
 }
 
 model FileUpload {
-  id               String              @id @default(uuid())
+  id               String            @id @default(uuid())
   candidateId      String?
   periodId         String
   kind             UploadKind
-  status           UploadStatus        @default(PENDING)
+  status           UploadStatus      @default(PENDING)
   bucket           String
-  objectKey        String              @unique
+  objectKey        String            @unique
   originalFileName String
   declaredMimeType String
   detectedMimeType String?
   sizeBytes        Int
   checksumSha256   String?
   ownerTokenHash   String
-  createdAt        DateTime            @default(now())
+  createdAt        DateTime          @default(now())
   uploadedAt       DateTime?
   finalizedAt      DateTime?
   expiresAt        DateTime
-  portfolio        CandidatePortfolio?
-  candidate        Candidate?          @relation(fields: [candidateId], references: [id], onDelete: Restrict)
-  period           RecruitmentPeriod   @relation(fields: [periodId], references: [id])
+  candidate        Candidate?        @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  period           RecruitmentPeriod @relation(fields: [periodId], references: [id])
 
   @@index([periodId, status, expiresAt])
   @@index([candidateId, kind])
   @@map("file_uploads")
 }
 
-model CandidatePortfolio {
-  id            String            @id @default(uuid())
-  candidateId   String
-  type          PortfolioItemType
-  fileUploadId  String?           @unique
-  externalUrl   String?
-  title         String?
-  description   String?
-  applicantRole String?
-  creationYear  Int?
-  sortOrder     Int               @default(0)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-  candidate     Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  file          FileUpload?       @relation(fields: [fileUploadId], references: [id], onDelete: Restrict)
+/// Phase C - "Field Khusus Per Birdep". Per-candidate supplemental answers
+/// collected only when a specific department is chosen (KOMIT's MBTI type,
+/// Adkesmah's focus area, and - since Phase D (ADR-045) - a Google Drive
+/// portfolio/RAB link for Medbrand/Badmedbrnd/Komanggar) - one row per
+/// candidate, columns nullable since only a subset applies to any given
+/// candidate (whichever department, if any, they picked). Follows the
+/// same 1:1-supplementary-table precedent as CandidatePlacement/
+/// SelectionDecision above, rather than a JSON blob or an EAV-style
+/// generic table, so each field stays statically typed and
+/// migration-checked like the rest of this schema (see DECISIONS.md for
+/// the write-up of this choice).
+///
+/// Phase D (ADR-045): portfolioUrl/budgetPlanUrl replace the file-upload
+/// mechanism (CandidatePortfolio + UploadKind.PORTFOLIO/BUDGET_PLAN) this
+/// phase originally used for these same fields - the product decision
+/// changed to a plain Google Drive link instead of an in-app upload.
+/// CandidatePortfolio was dropped entirely (see migration); UploadKind
+/// keeps its PORTFOLIO/BUDGET_PLAN values as inert/retired (Postgres
+/// can't drop an enum value) but nothing writes them going forward.
+model CandidateSupplementalData {
+  id            String         @id @default(uuid())
+  candidateId   String         @unique
+  komitMbti     String?
+  adkesmahFocus AdkesmahFocus?
+  /// Google Drive link for Medbrand (eksekutif) / Badmedbrnd (legislatif)
+  /// portfolio - validated (client+server) to start with
+  /// "https://drive.google.com".
+  portfolioUrl  String?
+  /// Google Drive link for Komisi Anggaran's RAB document - optional,
+  /// same "https://drive.google.com" validation as portfolioUrl.
+  budgetPlanUrl String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  candidate     Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
 
-  @@index([candidateId, sortOrder])
-  @@map("candidate_portfolios")
+  @@map("candidate_supplemental_data")
 }
 
 model RegistrationConfirmation {
@@ -559,16 +588,20 @@ enum ChoiceRank {
   SECONDARY
 }
 
+/// PORTFOLIO and BUDGET_PLAN are retired as of Phase D (ADR-045): both
+/// fields moved from in-app file upload to a plain Google Drive URL
+/// (CandidateSupplementalData.portfolioUrl/budgetPlanUrl). Kept in this
+/// enum only because Postgres cannot drop a single enum value without
+/// recreating the whole type - no code path creates a FileUpload with
+/// either kind going forward; validateUploadFile()/the upload API reject
+/// both. Any pre-Phase-D FileUpload/CandidatePortfolio rows using
+/// PORTFOLIO were dropped with the CandidatePortfolio table itself.
 enum UploadKind {
   CV
   PHOTO
   STUDENT_CARD
   PORTFOLIO
-}
-
-enum PortfolioItemType {
-  FILE
-  EXTERNAL_LINK
+  BUDGET_PLAN
 }
 
 enum UploadStatus {
@@ -637,4 +670,21 @@ enum SelectionStatus {
   TAKEN_P2
   HESITANT_P2
   ELIMINATED
+}
+
+/// Organizational branch (Phase A - "Jalur Legislatif"). A department
+/// belongs to exactly one track; a candidate's two choices must both be
+/// from the same track (enforced in submit.ts, not at the DB level - the
+/// two departments a candidate picks are free-form FKs, not something a
+/// CHECK constraint can reach across rows).
+enum Track {
+  EXECUTIVE
+  LEGISLATIVE
+}
+
+/// Phase C - "Field Khusus Per Birdep". Focus area a candidate picks when
+/// applying to Adkesmah (Departemen Advokasi dan Kesejahteraan Mahasiswa).
+enum AdkesmahFocus {
+  ADVOCACY
+  WELFARE
 }
