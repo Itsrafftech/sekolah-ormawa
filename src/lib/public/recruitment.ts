@@ -3,6 +3,7 @@ import "server-only";
 import type {
   ConfigStatus,
   PeriodStatus,
+  Track,
   UnitType,
 } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
@@ -31,6 +32,7 @@ export type PublicDepartment = {
   name: string;
   shortName: string;
   unitType: UnitType;
+  track: Track;
   description: string | null;
   configStatus: ConfigStatus;
   acceptsApplications: boolean;
@@ -70,7 +72,7 @@ export async function getPublicLandingData(
         },
       }),
       prisma.department.findMany({
-        where: { isActive: true },
+        where: { isActive: true, unitType: { not: "BPH" } },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         select: {
           id: true,
@@ -78,6 +80,7 @@ export async function getPublicLandingData(
           name: true,
           shortName: true,
           unitType: true,
+          track: true,
           description: true,
           configStatus: true,
         },

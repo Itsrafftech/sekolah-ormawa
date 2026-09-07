@@ -3,7 +3,6 @@ type PublicPageHeroProps = {
   eyebrow: string;
   title: string;
   description: string;
-  draft?: boolean;
 };
 
 export function PublicPageHero({
@@ -11,7 +10,6 @@ export function PublicPageHero({
   eyebrow,
   title,
   description,
-  draft = false,
 }: PublicPageHeroProps) {
   return (
     <section className="page-hero">
@@ -20,7 +18,6 @@ export function PublicPageHero({
       </div>
       <div className="page-hero__copy">
         <p className="eyebrow">{eyebrow}</p>
-        {draft ? <span className="draft-chip">Konten DRAFT</span> : null}
         <h1>{title}</h1>
         <p>{description}</p>
       </div>

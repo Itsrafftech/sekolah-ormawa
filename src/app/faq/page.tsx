@@ -18,7 +18,7 @@ export default function FaqPage() {
       <SiteHeader />
       <main id="main-content">
         <PublicPageHero
-          description="Jawaban membedakan keputusan yang sudah berlaku dari detail yang masih DRAFT. Tidak ada tanggal, kuota, atau kebijakan yang dikarang."
+          description="Jawaban membedakan keputusan yang sudah berlaku dari detail yang belum final. Tidak ada tanggal, kuota, atau kebijakan yang dikarang."
           eyebrow="Pusat informasi"
           index="03"
           title="Pertanyaan yang layak dijawab dengan jujur."

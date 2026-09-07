@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = createPublicMetadata({
   title: "Direktori Birdep",
   description:
-    "Direktori unit Ormawa Eksekutif PKU dan status slot Sekolah Ormawa berdasarkan periode aktif.",
+    "Direktori unit Ormawa PKU dan status slot Sekolah Ormawa berdasarkan periode aktif.",
   path: "/departemen",
 });
 
@@ -25,8 +25,7 @@ export default async function DepartmentsPage() {
       <SiteHeader />
       <main id="main-content">
         <PublicPageHero
-          draft
-          description="Direktori bersumber dari master data PostgreSQL. Label slot dibaca dari konfigurasi periode, bukan dari daftar yang ditanam di komponen."
+          description="Direktori bersumber langsung dari data organisasi. Label slot dibaca dari konfigurasi periode, bukan dari daftar yang ditanam di komponen."
           eyebrow="Direktori organisasi"
           index="02"
           title="Kenali profil unit, lalu periksa apakah slotnya tersedia."

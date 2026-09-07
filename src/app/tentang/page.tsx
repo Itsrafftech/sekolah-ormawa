@@ -22,17 +22,15 @@ export default function AboutPage() {
       <SiteHeader />
       <main id="main-content">
         <PublicPageHero
-          draft
-          description="Struktur informasi program sudah tersedia, sementara rincian durasi dan kebijakan pelaksanaan masih menunggu pengesahan pengurus."
+          description="Peserta mengenal organisasi, mempelajari cara kerjanya, lalu mengambil peran melalui pengalaman magang di Biro, Departemen, Komisi, atau Badan yang dipilih."
           eyebrow="Mengenal program"
           index="01"
-          title="Ruang belajar sebelum memilih jalan organisasi."
+          title="Sekolah Ormawa 2026 adalah ruang belajar organisasi melalui pengalaman langsung."
         />
 
         <section className="about-definition section-pad">
           <SectionHeading
-            draft
-            eyebrow="Definisi sementara"
+            eyebrow="Definisi"
             title="Sekolah Ormawa adalah pengalaman pengenalan dan magang organisasi."
           />
           <div className="editorial-callout">
@@ -51,7 +49,6 @@ export default function AboutPage() {
 
         <section className="participant-contract section-pad">
           <SectionHeading
-            draft
             eyebrow="Kontrak belajar"
             title="Hak dan kewajiban harus berjalan beriringan."
             description="Poin berikut adalah rancangan prinsip, bukan dokumen kebijakan final."

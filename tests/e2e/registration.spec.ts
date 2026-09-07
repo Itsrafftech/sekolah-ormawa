@@ -85,6 +85,11 @@ test("draft dari schema lama atau periode berbeda ditolak dengan aman", async ({
 test("happy path non-Medbrand menyimpan kandidat dan menampilkan bukti", async ({ page }) => {
   const suffix = `e2e-${Date.now()}`;
   await page.goto("/daftar");
+  // UX audit: "Hapus draft" now guards a destructive wipe behind
+  // window.confirm() (previously one accidental click away with no
+  // confirmation) - Playwright auto-dismisses dialogs unless handled, so
+  // accept it explicitly to keep this reset step working.
+  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Hapus draft" }).click();
   await chooseTrack(page);
   await fillIdentity(page, suffix);
@@ -127,6 +132,11 @@ test("happy path non-Medbrand menyimpan kandidat dan menampilkan bukti", async (
 test("Medbrand Pilihan 2 memunculkan portofolio dan menerima URL HTTPS", async ({ page }) => {
   const suffix = `medbrand-${Date.now()}`;
   await page.goto("/daftar");
+  // UX audit: "Hapus draft" now guards a destructive wipe behind
+  // window.confirm() (previously one accidental click away with no
+  // confirmation) - Playwright auto-dismisses dialogs unless handled, so
+  // accept it explicitly to keep this reset step working.
+  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Hapus draft" }).click();
   await chooseTrack(page);
   await fillIdentity(page, suffix);

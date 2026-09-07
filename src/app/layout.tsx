@@ -5,11 +5,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Sekolah Ormawa Eksekutif PKU",
+    default: "Sekolah Ormawa PKU",
     template: "%s · Sekolah Ormawa",
   },
   description:
-    "Fondasi aplikasi standalone Sekolah Ormawa Eksekutif PKU.",
+    "Fondasi aplikasi standalone Sekolah Ormawa PKU.",
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
   ),

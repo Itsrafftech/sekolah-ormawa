@@ -2,11 +2,33 @@ import { ArrowUpRight, BriefcaseBusiness, Palette } from "lucide-react";
 
 import type { PublicDepartment } from "@/lib/public/recruitment";
 
-const unitTypeLabels = {
-  BPH: "Badan Pengurus Harian",
-  BIRO: "Biro",
-  DEPARTEMEN: "Departemen",
-} as const;
+// unitType is a shared DB enum (BPH/BIRO/DEPARTEMEN), but BPH never appears
+// on the public directory (the data layer filters it out), and the two
+// branches call their remaining units by different names: the executive
+// branch calls them Biro/Departemen, the legislative branch calls the
+// same-shaped rows Badan/Komisi (see the department's own `name`, e.g.
+// "Badan Media dan Branding" or "Komisi Legislasi" - both stored with
+// unitType BIRO/DEPARTEMEN respectively). Read the badge off track so it
+// matches the guidebook's terminology instead of the raw enum label.
+function unitTypeLabel(department: PublicDepartment): string {
+  if (department.track === "LEGISLATIVE") {
+    return department.unitType === "BIRO" ? "Badan" : "Komisi";
+  }
+  return department.unitType === "BIRO" ? "Biro" : "Departemen";
+}
+
+// Each Birdep's public profile lives on its branch's own site, not this
+// app. The executive branch (Biro/Departemen) has one page per unit
+// under ormawaeksekutifpku.com/struktur-organisasi/. The legislative
+// branch (Komisi/Badan) instead publishes a single page on legislatifpku.com
+// with one #anchor per unit. Both use the department's shortName,
+// lowercased, as their slug.
+function departmentExternalHref(department: PublicDepartment): string {
+  const slug = department.shortName.toLowerCase();
+  return department.track === "LEGISLATIVE"
+    ? `https://legislatifpku.com/tentang-ormawa-ipb-legislatif-pku#${slug}`
+    : `https://ormawaeksekutifpku.com/struktur-organisasi/${slug}`;
+}
 
 export function DepartmentGrid({
   departments,
@@ -38,21 +60,28 @@ export function DepartmentGrid({
   return (
     <div className="department-grid">
       {departments.slice(0, limit).map((department, index) => (
-        <article className="department-card" key={department.id}>
+        <a
+          aria-label={`${department.name} - profil lengkap di situs ${department.track === "LEGISLATIVE" ? "Legislatif PKU" : "Eksekutif PKU"} (tautan eksternal, tab baru)`}
+          className="department-card"
+          href={departmentExternalHref(department)}
+          key={department.id}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
           <div className="department-card__topline">
             <span>{String(index + 1).padStart(2, "0")}</span>
-            <span>{unitTypeLabels[department.unitType]}</span>
+            <span>{unitTypeLabel(department)}</span>
           </div>
           <div className="department-card__icon" aria-hidden="true">
             {department.requiresPortfolio ? <Palette size={24} /> : <BriefcaseBusiness size={24} />}
           </div>
           <p className="department-card__code">{department.code}</p>
           <h3>{department.name}</h3>
-          <p className="department-card__description">
-            {department.configStatus === "DRAFT"
-              ? "Profil unit masih DRAFT dan menunggu deskripsi resmi pengurus."
-              : department.description}
-          </p>
+          {department.configStatus === "DRAFT" ? (
+            <p className="department-card__cta">Kenali unit ini →</p>
+          ) : (
+            <p className="department-card__description">{department.description}</p>
+          )}
           {department.requiresPortfolio ? (
             <p className="portfolio-note">Portofolio wajib bila Medbrand dipilih.</p>
           ) : null}
@@ -66,7 +95,7 @@ export function DepartmentGrid({
               : "Profil unit · belum membuka slot"}
           </div>
           <ArrowUpRight className="department-card__arrow" aria-hidden="true" size={18} />
-        </article>
+        </a>
       ))}
     </div>
   );

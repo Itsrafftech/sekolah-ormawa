@@ -20,7 +20,7 @@ export function createPublicMetadata({
     openGraph: {
       type: "website",
       locale: "id_ID",
-      siteName: "Sekolah Ormawa Eksekutif PKU",
+      siteName: "Sekolah Ormawa PKU",
       title,
       description,
       url: canonical,
@@ -29,7 +29,7 @@ export function createPublicMetadata({
           url: "/opengraph-image",
           width: 1200,
           height: 630,
-          alt: "Sekolah Ormawa Eksekutif PKU - Angkatan 63",
+          alt: "Sekolah Ormawa PKU - Angkatan 63",
         },
       ],
     },

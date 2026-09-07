@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Check, ShieldAlert } from "lucide-react";
+import { ArrowUpRight, Check, ShieldAlert } from "lucide-react";
 
 import { PrintButton } from "@/components/registration/print-button";
 import { SiteFooter } from "@/components/public/site-footer";
 import { SiteHeader } from "@/components/public/site-header";
+import { publicSiteContent } from "@/content/public-site";
 import { createPublicMetadata } from "@/lib/public/metadata";
 import { getRegistrationConfirmation } from "@/server/registration/submit";
 
@@ -55,10 +56,18 @@ export default async function RegistrationSuccessPage({
               </div>
             </dl>
             <div className="confirmation-next">
-              <span>DRAFT</span>
               <div>
-                <strong>Instruksi tahap berikutnya belum final.</strong>
-                <p>Pantau hanya kanal resmi setelah jadwal dan mekanisme dikonfirmasi pengurus.</p>
+                <strong>Informasi tahap berikutnya menyusul.</strong>
+                <p>Sambil menunggu jadwal resmi, gabung ke grup WhatsApp peserta agar tidak ketinggalan kabar.</p>
+                <a
+                  className="button button--primary no-print"
+                  href={publicSiteContent.contact.whatsappGroupUrl}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  {publicSiteContent.contact.whatsappGroupLabel}
+                  <ArrowUpRight aria-hidden="true" size={16} />
+                </a>
               </div>
             </div>
             <div className="confirmation-actions no-print">

@@ -2,6 +2,9 @@
 
 import {
   type ChangeEvent,
+  cloneElement,
+  isValidElement,
+  type ReactElement,
   type ReactNode,
   useEffect,
   useMemo,
@@ -111,12 +114,30 @@ function departmentAllowsBudgetPlan(department: PublicDepartmentOption | undefin
   return department?.code === "KOMANGG";
 }
 
+<<<<<<< HEAD
+=======
+<<<<<<< Updated upstream
+type DraftPayload = Pick<RegistrationPayload, "identity" | "choices" | "essays" | "track" | "departmentFields">;
+=======
+// Penugasan khusus Senbud ("Calon Rockidz"): informasional, bukan field
+// submit - pendaftar SENBUD harus menyiapkan portofolio (opsional) dan
+// video kreatif (wajib) di luar form. Ditampilkan di Step 2 (tag opsi),
+// Step 4 (rincian), dan Step 7 (pengingat sebelum kirim).
+function departmentHasSenbudPenugasan(department: PublicDepartmentOption | undefined): boolean {
+  return department?.code === "SENBUD";
+}
+
+>>>>>>> tanss
 // "Guidebook, ketentuan, dan pembayaran": `payment` is included here
 // (unlike `uploads`, which is deliberately never persisted to
 // localStorage - Phase 3 decision, ADR-019) because it holds only a text
 // code + amount, not a file/upload reference - same reasoning that
 // already applies to every other field in this Pick.
 type DraftPayload = Pick<RegistrationPayload, "identity" | "choices" | "essays" | "track" | "guidebookAcknowledged" | "payment" | "departmentFields">;
+<<<<<<< HEAD
+=======
+>>>>>>> Stashed changes
+>>>>>>> tanss
 
 type SavedDraft = {
   periodId: string;
@@ -201,6 +222,10 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
   );
   const allowsBudgetPlan = useMemo(
     () => selectedDepartments.some((department) => departmentAllowsBudgetPlan(department)),
+    [selectedDepartments],
+  );
+  const requiresSenbudPenugasan = useMemo(
+    () => selectedDepartments.some((department) => departmentHasSenbudPenugasan(department)),
     [selectedDepartments],
   );
 
@@ -300,6 +325,14 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
   }
 
   function clearDraft() {
+    // This wipes every step already filled in with no way to undo it, and
+    // used to be one accidental click away (styled as a small inline text
+    // link right at the top of the form) - gate it behind a confirmation
+    // so it can't fire from a stray tap/click.
+    const confirmed = window.confirm(
+      "Hapus draft lokal? Semua data yang sudah diisi di formulir ini akan hilang dari perangkat ini dan tidak dapat dikembalikan.",
+    );
+    if (!confirmed) return;
     window.localStorage.removeItem(draftStorageKey(config.periodId));
     setPayload(emptyPayload(config));
     setFieldErrors({});
@@ -521,7 +554,33 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
           {submitError ? <p>{submitError}</p> : null}
           <ul>
             {Object.entries(fieldErrors).map(([key, message]) => (
-              <li key={key}><a href={`#${fieldId(key)}`}>{message}</a></li>
+              <li key={key}>
+                <a
+                  href={`#${fieldId(key)}`}
+                  onClick={(event) => {
+                    // A plain hash link only scrolls near the field - it
+                    // doesn't move keyboard/screen-reader focus into the
+                    // actual control, so the input itself still had to be
+                    // found and clicked/tabbed to manually. Focus it
+                    // directly instead (falling back to the field's own
+                    // container, or its first focusable control, for
+                    // fieldset-based fields like track/Adkesmah-fokus that
+                    // have no single "-control" input).
+                    event.preventDefault();
+                    const control = document.getElementById(`${fieldId(key)}-control`);
+                    const target = control ?? document.getElementById(fieldId(key));
+                    if (!target) return;
+                    target.scrollIntoView({ behavior: "smooth", block: "center" });
+                    if (target instanceof HTMLElement && target.tabIndex >= 0) {
+                      target.focus({ preventScroll: true });
+                    } else {
+                      target.querySelector<HTMLElement>("input, select, textarea")?.focus({ preventScroll: true });
+                    }
+                  }}
+                >
+                  {message}
+                </a>
+              </li>
             ))}
           </ul>
         </div>
@@ -559,6 +618,7 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
             payload={payload}
             requiresPortfolio={requiresPortfolio}
             allowsBudgetPlan={allowsBudgetPlan}
+            requiresSenbudPenugasan={requiresSenbudPenugasan}
             mutate={mutate}
           />
         ) : null}
@@ -578,6 +638,7 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
             requiresMbti={requiresMbti}
             requiresAdkesmahFocus={requiresAdkesmahFocus}
             allowsBudgetPlan={allowsBudgetPlan}
+            requiresSenbudPenugasan={requiresSenbudPenugasan}
             mutate={mutate}
           />
         ) : null}
@@ -632,6 +693,11 @@ function TrackStep({ departmentsByTrack, errors, payload, chooseTrack, mutate }:
     mutate((current) => ({ ...current, guidebookAcknowledged: value }));
   return (
     <StepFrame number="00" eyebrow="Sebelum memilih Birdep" title="Pilih jalur pendaftaran">
+<<<<<<< HEAD
+=======
+<<<<<<< Updated upstream
+=======
+>>>>>>> tanss
       {/* "Guidebook, ketentuan, dan pembayaran": prominent banner + wajib
           checkbox, rendered before the Jalur picker per spec. */}
       <div className="guidebook-banner">
@@ -640,15 +706,29 @@ function TrackStep({ departmentsByTrack, errors, payload, chooseTrack, mutate }:
         </a>
         <label className={`guidebook-banner__checkbox${errors.guidebookAcknowledged ? " has-error" : ""}`} id={fieldId("guidebookAcknowledged")}>
           <input
+<<<<<<< HEAD
+=======
+            aria-describedby={errors.guidebookAcknowledged ? `${fieldId("guidebookAcknowledged")}-error` : undefined}
+            aria-invalid={errors.guidebookAcknowledged ? true : undefined}
+>>>>>>> tanss
             checked={payload.guidebookAcknowledged ?? false}
             onChange={(event) => setGuidebookAcknowledged(event.target.checked)}
             type="checkbox"
           />
           <span>Saya sudah membaca guidebook dan ketentuan pendaftaran.</span>
         </label>
+<<<<<<< HEAD
         {errors.guidebookAcknowledged ? <p className="field-error">{errors.guidebookAcknowledged}</p> : null}
       </div>
 
+=======
+        {errors.guidebookAcknowledged ? (
+          <p className="field-error" id={`${fieldId("guidebookAcknowledged")}-error`}>{errors.guidebookAcknowledged}</p>
+        ) : null}
+      </div>
+
+>>>>>>> Stashed changes
+>>>>>>> tanss
       <fieldset className="track-picker" id={fieldId("track")}>
         <legend className="sr-only">Jalur pendaftaran</legend>
         <div className="track-picker__grid">
@@ -687,12 +767,27 @@ function StepFrame({ number, eyebrow, title, children }: { number: string; eyebr
 }
 
 function Field({ id, label, error, hint, children }: { id: string; label: string; error?: string; hint?: string; children: ReactNode }) {
+  // The input/select/textarea is passed in as `children` by every call
+  // site rather than rendered here, so wiring aria-invalid/aria-describedby
+  // onto it means cloning it with the extra props - a screen reader
+  // reading the control previously got no indication an error (or hint)
+  // existed until it happened to reach the sibling <p>/<small> in DOM
+  // order.
+  const describedBy = [hint ? `${fieldId(id)}-hint` : null, error ? `${fieldId(id)}-error` : null]
+    .filter(Boolean)
+    .join(" ") || undefined;
+  const control = isValidElement(children)
+    ? cloneElement(children as ReactElement<Record<string, unknown>>, {
+        "aria-invalid": error ? true : undefined,
+        "aria-describedby": describedBy,
+      })
+    : children;
   return (
     <div className={`form-field${error ? " has-error" : ""}`} id={fieldId(id)}>
       <label htmlFor={`${fieldId(id)}-control`}>{label}</label>
-      {children}
-      {hint ? <small>{hint}</small> : null}
-      {error ? <p className="field-error">{error}</p> : null}
+      {control}
+      {hint ? <small id={`${fieldId(id)}-hint`}>{hint}</small> : null}
+      {error ? <p className="field-error" id={`${fieldId(id)}-error`}>{error}</p> : null}
     </div>
   );
 }
@@ -778,12 +873,12 @@ function ChoiceStep({ config, departmentsByTrack, errors, payload, mutate, requi
               <select id={`${fieldId(`choices.${index}.departmentId`)}-control`} value={payload.choices[index].departmentId} onChange={(e) => updateChoice(index, "departmentId", e.target.value)}>
                 <option value="">Pilih Birdep aktif</option>
                 {trackOptions.filter((department) => department.id !== payload.choices[index === 0 ? 1 : 0].departmentId).map((department) => (
-                  <option key={department.id} value={department.id}>{department.name}{departmentRequiresPortfolio(department) ? " - portofolio wajib" : ""}</option>
+                  <option key={department.id} value={department.id}>{department.name}{departmentRequiresPortfolio(department) ? " - portofolio wajib" : ""}{departmentHasSenbudPenugasan(department) ? " - wajib penugasan" : ""}</option>
                 ))}
               </select>
             </Field>
             <Field id={`choices.${index}.motivation`} label={`Motivasi Pilihan ${index + 1}`} error={errors[`choices.${index}.motivation`]} hint={`Minimal ${config.motivationMinWords} kata · ${countWords(payload.choices[index].motivation)} kata`}>
-              <textarea id={`${fieldId(`choices.${index}.motivation`)}-control`} value={payload.choices[index].motivation} onChange={(e) => updateChoice(index, "motivation", e.target.value)} rows={8} aria-describedby={`${fieldId(`choices.${index}.motivation`)}-counter`} />
+              <textarea id={`${fieldId(`choices.${index}.motivation`)}-control`} value={payload.choices[index].motivation} onChange={(e) => updateChoice(index, "motivation", e.target.value)} rows={8} />
             </Field>
           </article>
         ))}
@@ -889,15 +984,16 @@ function UploadField({ config, id, label, accept, detail, error, kind, value, on
       {value ? (
         <div className="upload-file"><FileText aria-hidden="true" size={18} /><span>{value.name}<small>{formatBytes(value.sizeBytes)}</small></span><button aria-label={`Hapus ${label}`} onClick={remove} type="button"><Trash2 aria-hidden="true" size={16} /></button></div>
       ) : (
-        <label className="upload-picker" htmlFor={`${fieldId(id)}-control`}><input accept={accept} aria-label={`Pilih file ${label}`} disabled={uploading} id={`${fieldId(id)}-control`} onChange={upload} type="file" /><span>{uploading ? "Memproses..." : "Pilih file"}</span></label>
+        <label className="upload-picker" htmlFor={`${fieldId(id)}-control`}><input accept={accept} aria-describedby={error ? `${fieldId(id)}-error` : undefined} aria-invalid={error ? true : undefined} aria-label={`Pilih file ${label}`} disabled={uploading} id={`${fieldId(id)}-control`} onChange={upload} type="file" /><span>{uploading ? "Memproses..." : "Pilih file"}</span></label>
       )}
       {uploading ? <progress aria-label={`Progres upload ${label}`} /> : null}
       {status ? <small aria-live="polite">{status}</small> : null}
-      {error ? <p className="field-error">{error}</p> : null}
+      {error ? <p className="field-error" id={`${fieldId(id)}-error`}>{error}</p> : null}
     </div>
   );
 }
 
+<<<<<<< HEAD
 // UAT feedback - "persyaratan follow dan share". Applies to every
 // registrant regardless of track/department, so unlike the Phase C/D
 // department-triggered fields this step is never conditionally hidden -
@@ -950,9 +1046,68 @@ function FollowEvidenceStep({ config, errors, payload, mutate }: StepProps) {
   );
 }
 
+=======
+<<<<<<< Updated upstream
+>>>>>>> tanss
 function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allowsBudgetPlan, mutate }: StepProps & {
+=======
+// UAT feedback - "persyaratan follow dan share". Applies to every
+// registrant regardless of track/department, so unlike the Phase C/D
+// department-triggered fields this step is never conditionally hidden -
+// it always renders between Dokumen (Step 3) and Esai & Portofolio
+// (Step 5).
+function FollowEvidenceStep({ config, errors, payload, mutate }: StepProps) {
+  const setUpload = (upload: UploadReference | null) =>
+    mutate((current) => ({ ...current, uploads: { ...current.uploads, followEvidence: upload } }));
+  return (
+    <StepFrame number="05" eyebrow="Wajib untuk semua pendaftar" title="Bukti Follow dan Share">
+      <div className="follow-evidence-instructions">
+        <p>Sebelum mendaftar, pastikan kamu sudah:</p>
+        <ol>
+          <li>Follow @ormawaeksekutifpku dan seluruh akun Instagram Birdep Eksekutif PKU (11 akun — cari sendiri di Instagram)</li>
+          <li>Follow @ormawalegislatifpku</li>
+          <li>Share jarkoman Sekolah Ormawa ke 3 grup WhatsApp</li>
+          <li>Share poster Sekolah Ormawa ke story Instagram pribadi kamu</li>
+        </ol>
+        <p>Kumpulkan semua screenshot bukti menjadi 1 file PDF dengan urutan:</p>
+        <ol>
+          <li>Screenshot follow @ormawaeksekutifpku</li>
+          <li>Screenshot follow 11 akun Birdep Eksekutif (boleh beberapa screenshot)</li>
+          <li>Screenshot follow @ormawalegislatifpku</li>
+          <li>Screenshot share jarkoman ke 3 grup WhatsApp</li>
+          <li>Screenshot story Instagram poster</li>
+        </ol>
+        <p>
+          Format nama file PDF wajib:
+          <br />
+          <code>[Pilihan Birdep/Kombad 1]_[Nama Lengkap]_bukti follow dan share.pdf</code>
+        </p>
+        <p className="follow-evidence-instructions__example">
+          Contoh: <code>PSDM_Muhammad Rafi Al Arifi_bukti follow dan share.pdf</code>
+        </p>
+      </div>
+      <div className="upload-grid">
+        <UploadField
+          config={config}
+          id="uploads.followEvidence"
+          label="Bukti Follow dan Share (PDF)"
+          accept=".pdf,application/pdf"
+          detail="Wajib · PDF · maksimum 10 MB"
+          error={errors["uploads.followEvidence"]}
+          kind="FOLLOW_EVIDENCE"
+          value={payload.uploads.followEvidence}
+          onChange={setUpload}
+        />
+      </div>
+    </StepFrame>
+  );
+}
+
+function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allowsBudgetPlan, requiresSenbudPenugasan, mutate }: StepProps & {
+>>>>>>> Stashed changes
   requiresPortfolio: boolean;
   allowsBudgetPlan: boolean;
+  requiresSenbudPenugasan: boolean;
 }) {
   const updateEssay = (key: keyof RegistrationPayload["essays"], value: string) => mutate((current) => ({ ...current, essays: { ...current.essays, [key]: value } }));
   const updateDriveUrl = (key: "portfolioUrl" | "budgetPlanUrl", value: string) =>
@@ -1019,10 +1174,44 @@ function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allows
           </Field>
         </section>
       ) : null}
+
+      {/* Penugasan khusus Senbud ("Calon Rockidz"): informasional, hanya
+          tampil ketika Senbud dipilih sebagai Pilihan 1 atau 2. Bukan field
+          submit - materi disiapkan pendaftar di luar form (Drive/Reels). */}
+      {requiresSenbudPenugasan ? (
+        <section className="portfolio-section">
+          <header>
+            <div>
+              <p className="eyebrow">Seni dan Budaya</p>
+              <h3>Penugasan khusus · Calon Rockidz</h3>
+              <p>Khusus pendaftar Senbud (Pilihan 1 atau 2). Persiapkan materi berikut sebelum pengumpulan.</p>
+            </div>
+          </header>
+          <ol className="penugasan-list">
+            <li>
+              <strong>Portofolio — Opsional</strong>
+              <p>Berisikan biodata diri, bakat, dan minat. Diunggah ke Google Drive.</p>
+            </li>
+            <li>
+              <strong>Video Kreatif — Wajib, diunggah di Reels</strong>
+              <p>Berisikan: (a) biodata diri; (b) alasan memilih Senbud; (c) program kerja yang diminati dan alasannya; (d) inovasi untuk program kerja tersebut.</p>
+            </li>
+          </ol>
+          <div className="penugasan-notes">
+            <strong>Catatan</strong>
+            <ol>
+              <li>Buat sekreatif mungkin, dengan konsep bebas.</li>
+              <li>Portofolio disimpan di Google Drive dengan format nama <code>Nama Lengkap_NIM_Calon Rockidz</code>.</li>
+              <li>Screenshot bukti unggah Video Kreatif di Reels juga masuk Google Drive dengan format nama <code>Nama Lengkap_NIM_usn ig_Calon Rockidz</code>.</li>
+            </ol>
+          </div>
+        </section>
+      ) : null}
     </StepFrame>
   );
 }
 
+<<<<<<< HEAD
 // "Guidebook, ketentuan, dan pembayaran": always renders (not conditional
 // on track/department, same as FollowEvidenceStep) between Bukti Follow
 // dan Share (Step 5) and Review & Submit (Step 7). The payment code is
@@ -1155,12 +1344,151 @@ function PaymentStep({ config, errors, payload, mutate }: StepProps) {
   );
 }
 
+=======
+<<<<<<< Updated upstream
+>>>>>>> tanss
 function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortfolio, requiresMbti, requiresAdkesmahFocus, allowsBudgetPlan, mutate }: StepProps & {
+=======
+// "Guidebook, ketentuan, dan pembayaran": always renders (not conditional
+// on track/department, same as FollowEvidenceStep) between Bukti Follow
+// dan Share (Step 5) and Review & Submit (Step 7). The payment code is
+// fetched exactly once - the effect below only calls the API when
+// `payload.payment.code` is still null, and the result is immediately
+// written back into payload (persisted to the localStorage draft by the
+// parent's existing draft-save effect), so revisiting this step or
+// reloading the page never re-issues a new code.
+function PaymentStep({ config, errors, payload, mutate }: StepProps) {
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [fetching, setFetching] = useState(false);
+  const [qrisFailed, setQrisFailed] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const requestedRef = useRef(false);
+
+  function fetchCode() {
+    requestedRef.current = true;
+    setFetching(true);
+    setFetchError(null);
+    fetch(`/api/registration/payment-code?periodId=${encodeURIComponent(config.periodId)}`)
+      .then(async (response) => {
+        const result = await response.json() as { code?: string; amount?: number; error?: string };
+        if (!response.ok || !result.code || !result.amount) {
+          throw new Error(result.error ?? "Gagal membuat kode pembayaran.");
+        }
+        mutate((current) => ({ ...current, payment: { code: result.code!, amount: result.amount! } }));
+      })
+      .catch((error: unknown) => {
+        requestedRef.current = false;
+        setFetchError(error instanceof Error ? error.message : "Gagal membuat kode pembayaran.");
+      })
+      .finally(() => setFetching(false));
+  }
+
+  useEffect(() => {
+    if (payload.payment.code || requestedRef.current) return;
+    fetchCode();
+    // Runs once per mount (guarded by requestedRef + the payload.payment.code
+    // check above) - config.periodId is stable for the life of this form,
+    // fetchCode is a plain function recreated each render and intentionally
+    // excluded so this effect doesn't re-run on every keystroke elsewhere
+    // in the form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const setEvidence = (upload: UploadReference | null) =>
+    mutate((current) => ({ ...current, uploads: { ...current.uploads, paymentEvidence: upload } }));
+
+  const copyGopayNumber = () => {
+    navigator.clipboard.writeText(GOPAY_NUMBER).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    }).catch(() => undefined);
+  };
+
+  return (
+    <StepFrame number="06" eyebrow="Wajib untuk semua pendaftar" title="Pembayaran">
+      <div className="payment-info-box" id={fieldId("payment.code")}>
+        <h3>Biaya Pendaftaran Sekolah Ormawa</h3>
+        {fetching ? <p>Membuat kode unik kamu...</p> : null}
+        {fetchError ? (
+          <div className="payment-info-box__error">
+            <p className="field-error">{fetchError}</p>
+            <button type="button" className="button button--outline" onClick={fetchCode}>
+              Coba lagi
+            </button>
+          </div>
+        ) : null}
+        {payload.payment.code ? (
+          <>
+            <p>{formatRupiah(config.paymentBaseAmount)} + kode unik kamu</p>
+            <dl className="payment-info-box__figures">
+              <div><dt>Kode unik kamu</dt><dd>{payload.payment.code}</dd></div>
+              <div><dt>Total yang harus dibayar</dt><dd className="payment-info-box__total">{formatRupiah(payload.payment.amount ?? config.paymentBaseAmount)}</dd></div>
+            </dl>
+            <p className="payment-info-box__example">
+              Contoh: jika kode unik {payload.payment.code}, bayar {formatRupiah(config.paymentBaseAmount + Number(payload.payment.code))}.
+            </p>
+          </>
+        ) : null}
+        {errors["payment.code"] ? <p className="field-error">{errors["payment.code"]}</p> : null}
+      </div>
+
+      <div className="payment-methods">
+        <article className="payment-method">
+          <h3>Gopay</h3>
+          <p className="payment-method__number">
+            {GOPAY_NUMBER}
+            <button type="button" className="payment-method__copy" onClick={copyGopayNumber} aria-label="Salin nomor Gopay">
+              <Copy aria-hidden="true" size={14} /> {copied ? "Tersalin" : "Salin"}
+            </button>
+          </p>
+          <p>a.n. {GOPAY_NAME}</p>
+        </article>
+        <article className="payment-method">
+          <h3>QRIS</h3>
+          {qrisFailed ? (
+            <div className="payment-method__qris-placeholder">[QRIS akan tersedia]</div>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element -- static asset placeholder, uploaded manually later (see spec)
+            <img src="/images/qris.png" alt="QRIS Sekolah Ormawa" onError={() => setQrisFailed(true)} />
+          )}
+        </article>
+      </div>
+
+      <div className="payment-instructions">
+        <p>Cara pembayaran:</p>
+        <ol>
+          <li>Transfer via Gopay ke {GOPAY_NUMBER} (a.n. {GOPAY_NAME}) atau scan QRIS</li>
+          <li>Nominal WAJIB sesuai total di atas (Rp {config.paymentBaseAmount.toLocaleString("id-ID")} + kode unik)</li>
+          <li>Screenshot bukti pembayaran</li>
+          <li>Upload di bawah ini</li>
+        </ol>
+      </div>
+
+      <div className="upload-grid">
+        <UploadField
+          config={config}
+          id="uploads.paymentEvidence"
+          label="Bukti Pembayaran"
+          accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+          detail="Wajib · JPG/PNG/PDF · maksimum 5 MB"
+          error={errors["uploads.paymentEvidence"]}
+          kind="PAYMENT_EVIDENCE"
+          value={payload.uploads.paymentEvidence}
+          onChange={setEvidence}
+        />
+      </div>
+    </StepFrame>
+  );
+}
+
+function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortfolio, requiresMbti, requiresAdkesmahFocus, allowsBudgetPlan, requiresSenbudPenugasan, mutate }: StepProps & {
+>>>>>>> Stashed changes
   departmentsByTrack: DepartmentsByTrack;
   requiresPortfolio: boolean;
   requiresMbti: boolean;
   requiresAdkesmahFocus: boolean;
   allowsBudgetPlan: boolean;
+  requiresSenbudPenugasan: boolean;
 }) {
   // departmentsByTrack first (matches what Step 2 actually showed/what the
   // user picked - correct regardless of this period's acceptsApplications
@@ -1190,7 +1518,26 @@ function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortf
             </dl>
           </ReviewSection>
         ) : null}
+<<<<<<< HEAD
         <ReviewSection title="Dokumen"><ul><li>CV · {payload.uploads.cv ? `${payload.uploads.cv.name} (${formatBytes(payload.uploads.cv.sizeBytes)})` : "Belum ada"}</li><li>Pas foto · {payload.uploads.photo ? `${payload.uploads.photo.name} (${formatBytes(payload.uploads.photo.sizeBytes)})` : "Belum ada"}</li><li>KTM · {payload.uploads.studentCard ? `${payload.uploads.studentCard.name} (${formatBytes(payload.uploads.studentCard.sizeBytes)})` : "Tidak dilampirkan"}</li><li>Bukti Follow dan Share · {payload.uploads.followEvidence ? `${payload.uploads.followEvidence.name} (${formatBytes(payload.uploads.followEvidence.sizeBytes)})` : "Belum ada"}</li></ul></ReviewSection>
+=======
+<<<<<<< Updated upstream
+        <ReviewSection title="Dokumen"><ul><li>CV · {payload.uploads.cv ? `${payload.uploads.cv.name} (${formatBytes(payload.uploads.cv.sizeBytes)})` : "Belum ada"}</li><li>Pas foto · {payload.uploads.photo ? `${payload.uploads.photo.name} (${formatBytes(payload.uploads.photo.sizeBytes)})` : "Belum ada"}</li><li>KTM · {payload.uploads.studentCard ? `${payload.uploads.studentCard.name} (${formatBytes(payload.uploads.studentCard.sizeBytes)})` : "Tidak dilampirkan"}</li></ul></ReviewSection>
+=======
+        {requiresSenbudPenugasan ? (
+          <ReviewSection title="Penugasan Senbud">
+            <div className="review-penugasan">
+              <p><strong>Pastikan sebelum mengirim:</strong> Portofolio (opsional) dan Video Kreatif (wajib) untuk Senbud sudah disiapkan.</p>
+              <ul>
+                <li>Portofolio di Google Drive · format nama <code>Nama Lengkap_NIM_Calon Rockidz</code></li>
+                <li>Screenshot bukti unggah Video Kreatif di Reels · format nama <code>Nama Lengkap_NIM_usn ig_Calon Rockidz</code></li>
+              </ul>
+            </div>
+          </ReviewSection>
+        ) : null}
+        <ReviewSection title="Dokumen"><ul><li>CV · {payload.uploads.cv ? `${payload.uploads.cv.name} (${formatBytes(payload.uploads.cv.sizeBytes)})` : "Belum ada"}</li><li>Pas foto · {payload.uploads.photo ? `${payload.uploads.photo.name} (${formatBytes(payload.uploads.photo.sizeBytes)})` : "Belum ada"}</li><li>KTM · {payload.uploads.studentCard ? `${payload.uploads.studentCard.name} (${formatBytes(payload.uploads.studentCard.sizeBytes)})` : "Tidak dilampirkan"}</li><li>Bukti Follow dan Share · {payload.uploads.followEvidence ? `${payload.uploads.followEvidence.name} (${formatBytes(payload.uploads.followEvidence.sizeBytes)})` : "Belum ada"}</li></ul></ReviewSection>
+>>>>>>> Stashed changes
+>>>>>>> tanss
         <ReviewSection title="Esai"><article><strong>Pengalaman organisasi</strong><p>{payload.essays.organizationExperience}</p></article><article><strong>Kontribusi untuk Pilihan 1</strong><p>{payload.essays.contribution}</p></article><article><strong>Keseimbangan akademik</strong><p>{payload.essays.academicBalance}</p></article></ReviewSection>
         <ReviewSection title="Pembayaran">
           <dl>

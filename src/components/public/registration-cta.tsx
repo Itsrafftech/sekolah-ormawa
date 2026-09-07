@@ -21,7 +21,12 @@ export function RegistrationCta({
     >
       <div className="registration-cta__status">
         <span className={`registration-dot registration-dot--${registration.state.toLowerCase()}`} />
-        <span>{registration.label}</span>
+        {/* Compact mode (hero) sits the button right underneath this row,
+            and the button's own text already repeats registration.label -
+            visually it read as the same sentence printed twice. Keep it
+            for screen readers (the dot alone carries no meaning) but stop
+            showing it twice to sighted users. */}
+        <span className={compact ? "sr-only" : undefined}>{registration.label}</span>
       </div>
       {!compact ? (
         <div className="registration-cta__copy">
