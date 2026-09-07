@@ -6,7 +6,7 @@ import { SiteHeader } from "@/components/public/site-header";
 import { createPublicMetadata } from "@/lib/public/metadata";
 
 export const metadata: Metadata = createPublicMetadata({
-  title: "Kebijakan Privasi - DRAFT",
+  title: "Kebijakan Privasi",
   description:
     "Struktur awal kebijakan privasi Sekolah Ormawa yang belum menjadi kebijakan hukum final.",
   path: "/kebijakan-privasi",
@@ -45,7 +45,6 @@ export default function PrivacyPage() {
       <SiteHeader />
       <main id="main-content">
         <PublicPageHero
-          draft
           description="Halaman ini baru menyediakan struktur konfigurasi. Isinya bukan nasihat hukum atau kebijakan final dan tidak boleh dianggap sebagai consent resmi."
           eyebrow="Transparansi data"
           index="04"
@@ -53,7 +52,7 @@ export default function PrivacyPage() {
         />
         <section className="privacy-page section-pad">
           <div className="privacy-alert" role="note">
-            <strong>DRAFT - belum berlaku sebagai kebijakan resmi</strong>
+            <strong>Belum berlaku sebagai kebijakan resmi</strong>
             <p>
               Dasar pemrosesan, versi consent, masa retensi, owner data, dan kanal hak subjek data masih memerlukan keputusan pengurus.
             </p>

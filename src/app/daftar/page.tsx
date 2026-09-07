@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   ...createPublicMetadata({
     title: "Pendaftaran",
-    description: "Form pendaftaran Sekolah Ormawa Eksekutif PKU.",
+    description: "Form pendaftaran Sekolah Ormawa PKU.",
     path: "/daftar",
   }),
   robots: { index: false, follow: false },
@@ -50,7 +50,7 @@ export default async function RegistrationPage() {
             <p>{availability.detail}</p>
             <div className="registration-closed__notice">
               <strong>Tidak ada data yang dapat dikirim.</strong>
-              <span>Fixture, jadwal, dan consent berlabel DRAFT bukan informasi resmi.</span>
+              <span>Fixture, jadwal, dan consent yang ditampilkan bukan informasi resmi.</span>
             </div>
             <Link className="button button--outline" href="/">
               <ArrowLeft aria-hidden="true" size={17} /> Kembali ke beranda

@@ -1,29 +1,25 @@
-export const PUBLIC_CONTENT_STATUS = "DRAFT" as const;
-
 export const publicSiteContent = {
-  productName: "Sekolah Ormawa Eksekutif PKU",
+  productName: "Sekolah Ormawa PKU",
   shortName: "Sekolah Ormawa",
   cohortLabel: "Mahasiswa baru IPB Angkatan 63",
-  previewNotice:
-    "Situs pratinjau. Jadwal, kontak, program kerja, dan kebijakan masih menunggu konfirmasi pengurus.",
   hero: {
     eyebrow: "Program magang dan pengenalan organisasi",
-    title: "Belajar organisasi dari dalam, bertumbuh bersama.",
+    title: "Kenali organisasi. Temukan peran. Bertumbuh bersama.",
     description:
-      "Sekolah Ormawa dirancang sebagai ruang bagi mahasiswa baru IPB Angkatan 63 untuk mengenal cara kerja organisasi, mencoba peran, dan belajar berkontribusi bersama Ormawa Eksekutif PKU.",
+      "Sekolah Ormawa 2026 hadir sebagai ruang bagi mahasiswa IPB Angkatan 63 untuk mengenal lingkungan organisasi PKU, mempelajari cara kerjanya, dan mendapatkan pengalaman melalui program magang.",
   },
   organization: {
     eyebrow: "Tentang organisasi",
     title: "Ruang kerja kolektif mahasiswa",
     description:
-      "Ormawa Eksekutif PKU diperkenalkan di situs ini sebagai ekosistem organisasi mahasiswa dengan unit kerja yang beragam. Uraian profil resmi organisasi masih menunggu verifikasi pengurus.",
-    note: "Copy profil organisasi berstatus DRAFT dan harus diganti dengan narasi resmi.",
+      "Ruang belajar untuk mengenal ekosistem organisasi mahasiswa PKU. Peserta mengenal berbagai unit kerja serta memahami struktur dan peran organisasi secara langsung.",
+    note: "Kenali setiap unit, pahami perannya, lalu temukan ruang untuk berkembang dan berkontribusi.",
   },
   program: {
     definition:
-      "Program pengenalan dan pembelajaran organisasi melalui pengalaman terarah di unit kerja yang dipilih peserta.",
+      "Sekolah Ormawa 2026 adalah program pengenalan dan pembelajaran organisasi melalui pengalaman langsung di unit kerja yang dipilih peserta.",
     duration:
-      "Durasi dan beban kegiatan belum diumumkan. Informasi final akan mengikuti jadwal resmi periode aktif.",
+      "20 September – 1 November 2026. Rangkaian Sekolah Ormawa 2026 berlangsung dari Opening Ceremony hingga Closing Ceremony.",
     goals: [
       "Membantu peserta memahami ritme dan etika kerja organisasi.",
       "Memberi ruang eksplorasi minat sebelum mengambil peran yang lebih jauh.",
@@ -65,66 +61,64 @@ export const publicSiteContent = {
         "Mendokumentasikan pembelajaran dan menerima umpan balik sebagai bekal langkah organisasi berikutnya.",
     },
   ],
-  gallery: [
-    {
-      label: "Ruang kolaborasi",
-      caption: "Placeholder dokumentasi kegiatan - aset resmi belum tersedia.",
-      variant: "arch",
-    },
-    {
-      label: "Proses belajar",
-      caption: "Placeholder dokumentasi pendampingan - aset resmi belum tersedia.",
-      variant: "orbit",
-    },
-    {
-      label: "Refleksi bersama",
-      caption: "Placeholder dokumentasi penutupan - aset resmi belum tersedia.",
-      variant: "steps",
-    },
-  ],
-  testimonials: [
-    "Cerita pengalaman peserta akan ditampilkan setelah narasumber dan kutipan diverifikasi.",
-    "Perspektif pendamping unit akan ditambahkan setelah mendapatkan persetujuan publikasi.",
-    "Kesan alumni program belum tersedia dan tidak digantikan dengan testimoni rekaan.",
-  ],
+  // Exact dates from the Sekolah Ormawa 2026 guidebook linimasa - split
+  // across the two existing TimelineColumn slots (registration/selection
+  // vs. class sessions/closing) rather than the old three-generic-step
+  // "belum dikonfirmasi" placeholders. Ten stages total, none invented.
   selectionTimeline: [
     {
-      step: "Pendaftaran",
-      detail: "Form dan jadwal menunggu periode resmi dibuka.",
+      step: "Open Recruitment",
+      detail: "8–18 September 2026",
     },
     {
-      step: "Seleksi awal",
-      detail: "Mekanisme dan kriterianya masih dalam konfigurasi DRAFT.",
+      step: "Opening Ceremony",
+      detail: "20 September 2026",
     },
     {
-      step: "Informasi hasil",
-      detail: "Kanal serta tanggal pengumuman belum dikonfirmasi.",
+      step: "Pengumuman Seleksi Berkas",
+      detail: "21 September 2026",
+    },
+    {
+      step: "Seleksi Wawancara",
+      detail: "22–24 September 2026",
+    },
+    {
+      step: "Pengumuman Seleksi Wawancara",
+      detail: "25 September 2026",
     },
   ],
   internshipTimeline: [
     {
-      step: "Orientasi",
-      detail: "Pengenalan konteks, ekspektasi, dan cara kerja unit.",
+      step: "First Class",
+      detail: "26 September 2026",
     },
     {
-      step: "Pengalaman di unit",
-      detail: "Aktivitas pembelajaran menyesuaikan rancangan unit dan periode.",
+      step: "Second Class",
+      detail: "27 September 2026",
     },
     {
-      step: "Refleksi",
-      detail: "Penutupan proses dan rangkuman pembelajaran peserta.",
+      step: "Third Class",
+      detail: "3 Oktober 2026",
+    },
+    {
+      step: "Fourth Class",
+      detail: "31 Oktober 2026",
+    },
+    {
+      step: "Closing Ceremony",
+      detail: "1 November 2026",
     },
   ],
   faq: [
     {
       question: "Siapa yang dapat mengikuti Sekolah Ormawa?",
       answer:
-        "Sasaran sementara program adalah mahasiswa baru IPB Angkatan 63. Aturan eligibility final masih menunggu konfirmasi pengurus dan akan diumumkan sebelum pendaftaran dibuka.",
+        "Sekolah Ormawa 2026 ditujukan bagi mahasiswa aktif IPB Angkatan 63 yang ingin mengenal lingkungan organisasi PKU dan mempersiapkan diri mengambil peran di dalamnya.",
     },
     {
       question: "Apakah pendaftaran sudah dibuka?",
       answer:
-        "Status pada tombol pendaftaran dibaca langsung dari periode di server. Jika periode masih DRAFT atau CLOSED, situs tidak akan mengarahkan pengunjung ke form aktif.",
+        "Status pada tombol pendaftaran mengikuti periode yang berlaku. Jika periode belum resmi dibuka atau sudah ditutup, situs tidak akan mengarahkan pengunjung ke form aktif.",
     },
     {
       question: "Apakah semua unit membuka slot?",
@@ -134,12 +128,12 @@ export const publicSiteContent = {
     {
       question: "Apakah pilihan Media Branding memerlukan portofolio?",
       answer:
-        "Ya. Jika Biro Media Branding dipilih sebagai Pilihan 1 atau Pilihan 2, pendaftar wajib memberikan sedikitnya satu file JPG/JPEG/PNG yang valid atau satu tautan portofolio yang valid. Form dan validasi lengkap baru dibangun pada Phase 3.",
+        "Ya. Jika Biro Media Branding dipilih sebagai Pilihan 1 atau Pilihan 2, pendaftar wajib memberikan sedikitnya satu file JPG/JPEG/PNG yang valid atau satu tautan portofolio yang valid.",
     },
     {
       question: "Berapa lama program berlangsung?",
       answer:
-        "Durasi belum final. Timeline pelaksanaan di halaman ini adalah kerangka DRAFT tanpa tanggal resmi.",
+        "Rangkaian kegiatan berlangsung dari Open Recruitment hingga Closing Ceremony sesuai linimasa Sekolah Ormawa 2026 pada bagian Alur Program.",
     },
     {
       question: "Di mana kebijakan data peserta dapat dibaca?",
@@ -148,9 +142,12 @@ export const publicSiteContent = {
     },
   ],
   footer: {
-    contact: "Kontak resmi menunggu konfirmasi",
-    social: "Akun media sosial resmi menunggu konfirmasi",
-    organization: "Ormawa Eksekutif PKU",
+    organization: "Sekolah Ormawa · Ormawa PKU",
+    credit: "Program kerja Departemen PSDM, Ormawa Eksekutif PKU.",
+  },
+  contact: {
+    whatsappGroupLabel: "Gabung grup WhatsApp peserta",
+    whatsappGroupUrl: "https://chat.whatsapp.com/JYfi6GQcRyAJmvb7kUDqBu",
   },
 } as const;
 

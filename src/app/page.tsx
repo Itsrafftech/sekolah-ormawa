@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowDown,
-  ArrowRight,
-  BookOpenText,
   Compass,
   HandHeart,
   Sparkles,
@@ -21,7 +19,7 @@ import { getPublicLandingData } from "@/lib/public/recruitment";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = createPublicMetadata({
-  title: "Sekolah Ormawa Eksekutif PKU",
+  title: "Sekolah Ormawa PKU",
   description:
     "Program magang dan pengenalan organisasi untuk mahasiswa baru IPB Angkatan 63.",
   path: "/",
@@ -30,30 +28,39 @@ export const metadata: Metadata = createPublicMetadata({
 const programHighlights = [
   {
     icon: Compass,
-    label: "Kenal",
-    copy: "Membaca karakter dan cara kerja unit organisasi.",
+    label: "Kenali",
+    copy: "Memahami lingkungan, struktur, dan peran organisasi mahasiswa di PKU IPB.",
   },
   {
     icon: Sparkles,
-    label: "Coba",
-    copy: "Mengambil bagian dalam pengalaman belajar yang terarah.",
+    label: "Pelajari",
+    copy: "Mendapatkan bekal dasar kepemimpinan, kesekretariatan, kebendaharaan, pembuatan acara, dan struktur kepanitiaan.",
   },
   {
     icon: HandHeart,
-    label: "Tumbuh",
-    copy: "Menerima umpan balik dan merumuskan langkah berikutnya.",
+    label: "Berperan",
+    copy: "Mengikuti pengalaman magang dan mengerjakan project sesuai Biro, Departemen, Komisi, atau Badan penempatan.",
   },
 ] as const;
 
 export default async function HomePage() {
   const publicData = await getPublicLandingData();
 
+  // Real, server-derived structure - never invented copy. The public data
+  // layer already excludes BPH (it coordinates the executive branch but
+  // never accepts applicants), so these two counts are a true partition of
+  // publicData.departments - they always sum back to totalUnits, by
+  // construction, instead of only lining up for today's fixture data.
+  const totalUnits = publicData.departments.length;
+  const executiveUnits = publicData.departments.filter(
+    (department) => department.track === "EXECUTIVE",
+  ).length;
+  const legislativeUnits = publicData.departments.filter(
+    (department) => department.track === "LEGISLATIVE",
+  ).length;
+
   return (
     <div className="public-site" id="top">
-      <div className="preview-ribbon" role="status">
-        <span>DRAFT</span>
-        <p>{publicSiteContent.previewNotice}</p>
-      </div>
       <SiteHeader />
 
       <main id="main-content">
@@ -61,20 +68,16 @@ export default async function HomePage() {
           <div className="home-hero__copy">
             <div className="hero-meta">
               <span>{publicSiteContent.hero.eyebrow}</span>
-              <span aria-hidden="true">/</span>
               <span>IPB 63</span>
             </div>
             <h1 id="home-title">
-              Belajar <mark className="hl">organisasi</mark>
-              <span> dari dalam,</span>
-              <em> bertumbuh bersama.</em>
+              Kenali <mark className="hl">organisasi</mark>.
+              <span> Temukan peran.</span>
+              <em> Bertumbuh bersama.</em>
             </h1>
             <p>{publicSiteContent.hero.description}</p>
             <div className="home-hero__actions">
               <RegistrationCta registration={publicData.registration} compact />
-              <Link className="text-link" href="/tentang">
-                Kenali program <ArrowRight aria-hidden="true" size={16} />
-              </Link>
             </div>
           </div>
 
@@ -90,6 +93,9 @@ export default async function HomePage() {
               <span>IPB</span>
             </div>
             <p>Masuk untuk mengenal. Keluar dengan arah.</p>
+            <div className="hero-portal__badge">
+              <Image alt="Sekolah Ormawa" height={590} src="/images/logo_tulisan.png" width={2216} />
+            </div>
           </div>
 
           <a className="scroll-cue" href="#tentang-program">
@@ -99,23 +105,58 @@ export default async function HomePage() {
         </section>
 
         <section className="organization-intro section-pad" id="tentang-program">
-          <SectionHeading
-            draft
-            eyebrow={publicSiteContent.organization.eyebrow}
-            title={publicSiteContent.organization.title}
-            description={publicSiteContent.organization.description}
-          />
+          <div className="organization-intro__head">
+            <span className="section-index">01 / ORGANISASI</span>
+            <h2>{publicSiteContent.organization.title}</h2>
+          </div>
+
           <div className="organization-intro__body">
-            <div className="organization-monogram" aria-hidden="true">
-              <span>O</span>
-              <span>E</span>
-              <span>PKU</span>
+            <div className="organization-structure">
+              <p className="organization-structure__caption">Struktur unit kerja</p>
+
+              {totalUnits > 0 ? (
+                <>
+                  <div className="organization-structure__total">
+                    <strong>{totalUnits}</strong>
+                    <span>Unit kerja aktif di Ormawa PKU</span>
+                  </div>
+
+                  <div className="organization-structure__branches">
+                    <div className="organization-structure__branch">
+                      <strong>{executiveUnits}</strong>
+                      <span>Eksekutif</span>
+                    </div>
+                    <div className="organization-structure__branch">
+                      <strong>{legislativeUnits}</strong>
+                      <span>Legislatif</span>
+                    </div>
+                  </div>
+
+                  {/* executiveUnits + legislativeUnits always equals
+                      totalUnits above - see the partition comment where
+                      these are computed - so the breakdown never visually
+                      disagrees with the total. */}
+                  <div className="organization-structure__bar" role="presentation">
+                    <span
+                      className="organization-structure__bar-segment organization-structure__bar-segment--executive"
+                      style={{ flexGrow: executiveUnits || 1 }}
+                    />
+                    <span
+                      className="organization-structure__bar-segment organization-structure__bar-segment--legislative"
+                      style={{ flexGrow: legislativeUnits || 1 }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <p className="organization-structure__footnote">
+                  Data unit kerja sedang tidak tersedia.
+                </p>
+              )}
             </div>
+
             <div className="organization-intro__notes">
-              <p>{publicSiteContent.organization.note}</p>
-              <Link href="/tentang">
-                Baca konteks program <ArrowRight aria-hidden="true" size={16} />
-              </Link>
+              <p className="organization-intro__lead">{publicSiteContent.organization.description}</p>
+              <p className="organization-intro__annotation">{publicSiteContent.organization.note}</p>
             </div>
           </div>
         </section>
@@ -124,8 +165,8 @@ export default async function HomePage() {
           <div className="program-manifesto__lead">
             <span className="section-index">02 / PROGRAM</span>
             <blockquote>
-              Bukan sekadar melihat organisasi bekerja. Ini ruang untuk
-              <em> mencoba, bertanya, dan membaca diri.</em>
+              Kenali organisasi. Pelajari cara kerjanya.
+              <em> Temukan peranmu.</em>
             </blockquote>
           </div>
           <div className="program-highlights">
@@ -144,21 +185,21 @@ export default async function HomePage() {
             <div className="impact-band__lead">
               <span className="section-index">03 / KOMITMEN</span>
               <h2 id="impact-title">
-                Tiga hal yang sudah pasti, <mark className="hl">sebelum</mark> satu pun pendaftaran dibuka.
+                Bekal untuk mengambil <mark className="hl">peran</mark>.
               </h2>
             </div>
             <div className="impact-band__stats">
               <article>
-                <strong>{publicData.departments.length || 13}</strong>
-                <span>Unit kerja (BPH/Biro/Departemen) siap dikenali lewat direktori Birdep.</span>
+                <strong>{publicData.departments.length || 18}</strong>
+                <span>Unit kerja PKU yang bisa dikenali langsung, dari struktur hingga peran kerjanya.</span>
               </article>
               <article>
                 <strong>63</strong>
-                <span>Angkatan IPB yang menjadi sasaran program pengenalan ini.</span>
+                <span>Angkatan IPB yang diajak menemukan potensi dan minat sebelum mengambil peran.</span>
               </article>
               <article>
                 <strong>3</strong>
-                <span>Gerak belajar yang membentuk perjalanan: Kenal, Coba, Tumbuh.</span>
+                <span>Tahapan magang yang melatih kerja sama, komunikasi, dan pengambilan keputusan: Kenali, Pelajari, Berperan.</span>
               </article>
             </div>
           </div>
@@ -166,27 +207,19 @@ export default async function HomePage() {
 
         <section className="directory-section section-pad" id="birdep">
           <SectionHeading
-            draft
             eyebrow="Direktori unit"
             title="Banyak ruang, satu kesempatan untuk mengenali arah."
-            description="Kartu berikut bersumber dari master data PostgreSQL. Profil unit tidak otomatis berarti unit tersebut membuka slot pada periode aktif."
+            description="Kartu berikut bersumber langsung dari data organisasi. Profil unit tidak otomatis berarti unit tersebut membuka slot pada periode aktif."
           />
           <DepartmentGrid
             departments={publicData.departments}
             limit={6}
             source={publicData.source}
           />
-          <div className="section-link-row">
-            <span>{publicData.departments.length} profil unit tersedia</span>
-            <Link className="button button--outline" href="/departemen">
-              Lihat semua Birdep <ArrowRight aria-hidden="true" size={17} />
-            </Link>
-          </div>
         </section>
 
         <section className="experience-section section-pad">
           <SectionHeading
-            draft
             eyebrow="Rancangan pengalaman"
             title="Tiga gerak belajar yang membentuk perjalanan."
             description="Ini bukan daftar program kerja resmi. Bentuk kegiatan final akan mengikuti rancangan unit dan periode yang telah disahkan."
@@ -202,66 +235,22 @@ export default async function HomePage() {
           </div>
         </section>
 
-        <section className="gallery-section section-pad" id="galeri">
-          <SectionHeading
-            draft
-            eyebrow="Galeri kegiatan"
-            title="Tempat untuk cerita yang akan datang."
-            description="Visual abstrak lokal digunakan sementara agar tidak mengarang dokumentasi atau memakai aset tanpa izin."
-          />
-          <div className="abstract-gallery">
-            {publicSiteContent.gallery.map((item, index) => (
-              <figure className={`gallery-card gallery-card--${item.variant}`} key={item.label}>
-                <div className="gallery-card__visual" aria-label={item.caption} role="img">
-                  <span className="gallery-card__number">0{index + 1}</span>
-                  <span className="shape shape--one" />
-                  <span className="shape shape--two" />
-                  <span className="shape shape--three" />
-                </div>
-                <figcaption>
-                  <strong>{item.label}</strong>
-                  <span>{item.caption}</span>
-                </figcaption>
-              </figure>
-            ))}
-          </div>
-        </section>
-
-        <section className="testimonial-section section-pad">
-          <SectionHeading
-            draft
-            eyebrow="Suara dari perjalanan"
-            title="Tidak ada kutipan rekaan di sini."
-            description="Bagian testimoni disiapkan sebagai struktur, lalu hanya akan diisi setelah narasumber dan persetujuan publikasi terverifikasi."
-          />
-          <div className="testimonial-grid">
-            {publicSiteContent.testimonials.map((testimonial, index) => (
-              <article key={testimonial}>
-                <BookOpenText aria-hidden="true" size={24} strokeWidth={1.5} />
-                <span>Placeholder 0{index + 1}</span>
-                <p>{testimonial}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
         <section className="timeline-section section-pad" id="alur">
           <SectionHeading
-            draft
             eyebrow="Alur program"
-            title="Dua lintasan, tanpa tanggal yang dikarang."
-            description="Tahapan berikut adalah kerangka informasi. Jadwal dan mekanisme resmi belum dikonfirmasi."
+            title="Linimasa Sekolah Ormawa 2026."
+            description="Rangkaian kegiatan dari pendaftaran hingga penutupan, sesuai jadwal resmi Sekolah Ormawa 2026."
           />
           <div className="timeline-columns">
             <TimelineColumn
               items={publicSiteContent.selectionTimeline}
               kicker="Lintasan A"
-              title="Seleksi"
+              title="Seleksi & pembukaan"
             />
             <TimelineColumn
               items={publicSiteContent.internshipTimeline}
               kicker="Lintasan B"
-              title="Pelaksanaan magang"
+              title="Kelas & penutupan"
             />
           </div>
         </section>
@@ -283,19 +272,16 @@ export default async function HomePage() {
               </details>
             ))}
           </div>
-          <Link className="text-link faq-more" href="/faq">
-            Lihat semua pertanyaan <ArrowRight aria-hidden="true" size={16} />
-          </Link>
         </section>
 
         <section className="closing-cta section-pad">
           <div className="closing-cta__copy">
             <p className="eyebrow">Langkah berikutnya</p>
             <h2>
-              Siap <mark className="hl">mengenal</mark> organisasi dari jarak yang lebih dekat?
+              Daftar Sekolah <mark className="hl">Ormawa</mark> 2026.
             </h2>
             <p>
-              Tombol mengikuti status periode dan gate rilis dari server. Data DRAFT tidak pernah membuka form.
+              Tombol di samping selalu mengikuti status pendaftaran yang berlaku saat ini.
             </p>
           </div>
           <RegistrationCta registration={publicData.registration} />
