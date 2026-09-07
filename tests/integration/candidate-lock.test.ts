@@ -25,12 +25,19 @@ function headers(): Headers {
   return new Headers({ "User-Agent": "Phase6Integration/1.0", "X-Forwarded-For": "203.0.113.6" });
 }
 
+// "Guidebook, ketentuan, dan pembayaran": periodId+paymentCode is unique -
+// a module-level counter gives every insertCandidate() call in this file
+// a distinct code regardless of how many share this file's one periodId.
+let paymentCodeCounter = 0;
+
 async function insertCandidate(id: string, departmentId: string): Promise<void> {
+  paymentCodeCounter += 1;
+  const paymentCode = String(paymentCodeCounter).padStart(3, "0");
   await pool.query(
     `INSERT INTO candidates
-      (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgram", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", track)
-     VALUES ($1, $2, $3, 'Kandidat Lock Fixture', $4, $4, 63, 2026, 'Kelas L6', $5, '081200000001', $6, $6, 'Kota Fixture', 'Sintetis', 'Sintetis', 'Sintetis', 'SUBMITTED', now(), now(), 'EXECUTIVE')`,
-    [id, periodId, `REG-${id.slice(-6)}`, `NIM-${id.slice(-6)}`, "Program Studi Fixture", `${id}@example.test`],
+      (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgram", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", track, "paymentCode", "paymentAmount")
+     VALUES ($1, $2, $3, 'Kandidat Lock Fixture', $4, $4, 63, 2026, 'Kelas L6', $5, '081200000001', $6, $6, 'Kota Fixture', 'Sintetis', 'Sintetis', 'Sintetis', 'SUBMITTED', now(), now(), 'EXECUTIVE', $7, $8)`,
+    [id, periodId, `REG-${id.slice(-6)}`, `NIM-${id.slice(-6)}`, "Program Studi Fixture", `${id}@example.test`, paymentCode, 15000 + Number(paymentCode)],
   );
   await pool.query(
     `INSERT INTO candidate_choices (id, "candidateId", "departmentId", rank, motivation, "createdAt", "updatedAt")

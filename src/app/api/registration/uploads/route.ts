@@ -21,8 +21,10 @@ const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
 // Komanggar's RAB are no longer uploads - a request for either kind is
 // now rejected here as an invalid payload, same as any unrecognized kind.
 // FOLLOW_EVIDENCE added (UAT feedback - "persyaratan follow dan share"):
-// required PDF for every registrant.
-const uploadKinds = new Set<UploadKind>(["CV", "PHOTO", "STUDENT_CARD", "FOLLOW_EVIDENCE"]);
+// required PDF for every registrant. PAYMENT_EVIDENCE added ("Guidebook,
+// ketentuan, dan pembayaran"): required payment screenshot/receipt for
+// every registrant.
+const uploadKinds = new Set<UploadKind>(["CV", "PHOTO", "STUDENT_CARD", "FOLLOW_EVIDENCE", "PAYMENT_EVIDENCE"]);
 
 export async function POST(request: NextRequest) {
   try {

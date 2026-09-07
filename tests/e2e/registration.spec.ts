@@ -7,6 +7,9 @@ const pdf = Buffer.from("%PDF-1.4 synthetic e2e fixture");
 const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 
 async function chooseTrack(page: Page, track: "Eksekutif PKU" | "Legislatif PKU" = "Eksekutif PKU") {
+  // "Guidebook, ketentuan, dan pembayaran": Step 0's checkbox is wajib
+  // before Step 0 can be left at all.
+  await page.getByLabel(/Saya sudah membaca guidebook dan ketentuan pendaftaran/u).check();
   await page.getByRole("radio", { name: new RegExp(track, "u") }).check();
   await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
 }
@@ -76,7 +79,7 @@ test("draft dari schema lama atau periode berbeda ditolak dengan aman", async ({
   await expect.poll(() => page.evaluate(({ periodId }) => {
     const raw = window.localStorage.getItem(`sekolah-ormawa:registration-draft:${periodId}`);
     return raw ? (JSON.parse(raw) as { schemaVersion?: number }).schemaVersion : null;
-  }, { periodId: E2E_PERIOD_ID })).toBe(4);
+  }, { periodId: E2E_PERIOD_ID })).toBe(5);
 });
 
 test("happy path non-Medbrand menyimpan kandidat dan menampilkan bukti", async ({ page }) => {
@@ -93,15 +96,24 @@ test("happy path non-Medbrand menyimpan kandidat dan menampilkan bukti", async (
   await expect(page.getByText("Upload privat tervalidasi.").nth(1)).toBeVisible();
   await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
 
-  // UAT feedback - "persyaratan follow dan share": step baru wajib untuk
-  // semua pendaftar, terletak di antara Dokumen dan Esai & Portofolio.
+  // "Guidebook, ketentuan, dan pembayaran": Esai & Portofolio now comes
+  // BEFORE Bukti Follow dan Share (reordered from "persyaratan follow dan
+  // share"'s original order).
+  await page.getByLabel("Pengalaman organisasi sebelumnya").fill("Pengalaman sintetis untuk pengujian.");
+  await page.getByLabel("Kontribusi untuk Pilihan 1").fill("Kontribusi sintetis untuk pengujian.");
+  await page.getByLabel("Cara menyeimbangkan akademik dan organisasi").fill("Rencana sintetis untuk pengujian.");
+  await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
+
+  // UAT feedback - "persyaratan follow dan share".
   await page.getByLabel("Pilih file Bukti Follow dan Share (PDF)").setInputFiles({ name: "bukti-sintetis.pdf", mimeType: "application/pdf", buffer: pdf });
   await expect(page.getByText("Upload privat tervalidasi.")).toBeVisible();
   await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
 
-  await page.getByLabel("Pengalaman organisasi sebelumnya").fill("Pengalaman sintetis untuk pengujian.");
-  await page.getByLabel("Kontribusi untuk Pilihan 1").fill("Kontribusi sintetis untuk pengujian.");
-  await page.getByLabel("Cara menyeimbangkan akademik dan organisasi").fill("Rencana sintetis untuk pengujian.");
+  // "Guidebook, ketentuan, dan pembayaran": new Payment step - kode unik
+  // diambil otomatis dari server saat step ini dimasuki.
+  await expect(page.getByText(/Kode unik kamu/u)).toBeVisible();
+  await page.getByLabel("Pilih file Bukti Pembayaran").setInputFiles({ name: "bukti-bayar-sintetis.pdf", mimeType: "application/pdf", buffer: pdf });
+  await expect(page.getByText("Upload privat tervalidasi.")).toBeVisible();
   await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
 
   await page.getByText("Saya menyatakan data").click();
@@ -124,18 +136,25 @@ test("Medbrand Pilihan 2 memunculkan portofolio dan menerima URL HTTPS", async (
   await expect(page.getByText("Upload privat tervalidasi.")).toHaveCount(2);
   await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
 
-  // UAT feedback - "persyaratan follow dan share": step baru wajib untuk
-  // semua pendaftar, terletak di antara Dokumen dan Esai & Portofolio.
-  await page.getByLabel("Pilih file Bukti Follow dan Share (PDF)").setInputFiles({ name: "bukti-medbrand.pdf", mimeType: "application/pdf", buffer: pdf });
-  await expect(page.getByText("Upload privat tervalidasi.")).toBeVisible();
-  await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
-
+  // "Guidebook, ketentuan, dan pembayaran": Esai & Portofolio now comes
+  // BEFORE Bukti Follow dan Share (reordered from "persyaratan follow dan
+  // share"'s original order).
   await page.getByLabel("Pengalaman organisasi sebelumnya").fill("Sintetis");
   await page.getByLabel("Kontribusi untuk Pilihan 1").fill("Sintetis");
   await page.getByLabel("Cara menyeimbangkan akademik dan organisasi").fill("Sintetis");
   await expect(page.getByText("Wajib karena Media Branding dipilih.")).toBeVisible();
-  await page.getByRole("button", { name: /Tambah tautan HTTPS/ }).click();
-  await page.getByLabel("URL HTTPS").fill("https://www.behance.net/synthetic-e2e");
+  await page.getByLabel("Link Google Drive Portofolio").fill("https://drive.google.com/file/d/synthetic-e2e/view");
+  await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
+
+  // UAT feedback - "persyaratan follow dan share".
+  await page.getByLabel("Pilih file Bukti Follow dan Share (PDF)").setInputFiles({ name: "bukti-medbrand.pdf", mimeType: "application/pdf", buffer: pdf });
+  await expect(page.getByText("Upload privat tervalidasi.")).toBeVisible();
+  await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
+
+  // "Guidebook, ketentuan, dan pembayaran": new Payment step.
+  await expect(page.getByText(/Kode unik kamu/u)).toBeVisible();
+  await page.getByLabel("Pilih file Bukti Pembayaran").setInputFiles({ name: "bukti-bayar-medbrand.pdf", mimeType: "application/pdf", buffer: pdf });
+  await expect(page.getByText("Upload privat tervalidasi.")).toBeVisible();
   await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
   await expect(page.getByRole("heading", { name: "Review & persetujuan" })).toBeVisible();
 });

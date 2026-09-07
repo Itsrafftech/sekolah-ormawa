@@ -15,12 +15,19 @@ const studyProgramId = "82300000-0000-4000-8000-000000000001";
 let buildCandidateExportCsv: typeof import("@/server/candidates/export").buildCandidateExportCsv;
 let disconnectPrismaForTests: typeof import("@/lib/db").disconnectPrismaForTests;
 
+// "Guidebook, ketentuan, dan pembayaran": periodId+paymentCode is unique -
+// a module-level counter gives every insertCandidate() call in this file
+// a distinct code regardless of how many share this file's one periodId.
+let paymentCodeCounter = 0;
+
 async function insertCandidate(id: string, name: string, status: "SUBMITTED" | "WITHDRAWN"): Promise<void> {
+  paymentCodeCounter += 1;
+  const paymentCode = String(paymentCodeCounter).padStart(3, "0");
   await pool.query(
     `INSERT INTO candidates
-      (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgram", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", track)
-     VALUES ($1, $2, $3, $4, $5, $5, 63, 2026, 'Kelas E7', $6, '081200000001', $7, $7, 'Kota Fixture', 'Sintetis', 'Sintetis', 'Sintetis', $8, now(), now(), 'EXECUTIVE')`,
-    [id, periodId, `REG-${id.slice(-6)}`, name, `NIM-${id.slice(-6)}`, "Program Studi Export", `${id}@example.test`, status],
+      (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgram", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", track, "paymentCode", "paymentAmount")
+     VALUES ($1, $2, $3, $4, $5, $5, 63, 2026, 'Kelas E7', $6, '081200000001', $7, $7, 'Kota Fixture', 'Sintetis', 'Sintetis', 'Sintetis', $8, now(), now(), 'EXECUTIVE', $9, $10)`,
+    [id, periodId, `REG-${id.slice(-6)}`, name, `NIM-${id.slice(-6)}`, "Program Studi Export", `${id}@example.test`, status, paymentCode, 15000 + Number(paymentCode)],
   );
   await pool.query(
     `INSERT INTO candidate_choices (id, "candidateId", "departmentId", rank, motivation, "createdAt", "updatedAt")

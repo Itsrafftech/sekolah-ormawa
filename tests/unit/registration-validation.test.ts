@@ -52,6 +52,7 @@ const config: RegistrationFormConfig = {
   essayMinWords: 1,
   essayMaxWords: 1000,
   portfolioUrlMaxLength: 2048,
+  paymentBaseAmount: 15000,
   draftTtlSeconds: 3600,
   departments: [
     department({ id: departmentA, code: "A", name: "A", shortName: "A" }),
@@ -74,6 +75,7 @@ const driveUrl = "https://drive.google.com/file/d/fixture-id/view";
 function payload(): RegistrationPayload {
   return {
     periodId: config.periodId,
+    guidebookAcknowledged: true,
     identity: {
       name: "Peserta Sintetis",
       nim: "I-123 TEST",
@@ -94,8 +96,10 @@ function payload(): RegistrationPayload {
       photo: { id: "40000000-0000-4000-8000-000000000002", kind: "PHOTO", name: "foto.png", sizeBytes: 100, mimeType: "image/png" },
       studentCard: null,
       followEvidence: { id: "40000000-0000-4000-8000-000000000003", kind: "FOLLOW_EVIDENCE", name: "bukti.pdf", sizeBytes: 100, mimeType: "application/pdf" },
+      paymentEvidence: { id: "40000000-0000-4000-8000-000000000004", kind: "PAYMENT_EVIDENCE", name: "bukti-bayar.pdf", sizeBytes: 100, mimeType: "application/pdf" },
     },
     essays: { organizationExperience: "Sintetis", contribution: "Sintetis", academicBalance: "Sintetis" },
+    payment: { code: "001", amount: 15001 },
     departmentFields: {},
     consent: { truthful: true, processing: true, version: config.consentVersion },
   };
@@ -122,6 +126,29 @@ describe("registration validation", () => {
     const result = validateRegistrationPayload(input, config);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errors["uploads.followEvidence"]).toBeTruthy();
+  });
+
+  // "Guidebook, ketentuan, dan pembayaran".
+  it("menolak pendaftaran tanpa checkbox guidebook dicentang", () => {
+    const input = payload();
+    input.guidebookAcknowledged = false;
+    const result = validateRegistrationPayload(input, config);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errors.guidebookAcknowledged).toBeTruthy();
+  });
+
+  it("menolak pendaftaran tanpa kode pembayaran atau tanpa bukti pembayaran (wajib untuk semua pendaftar)", () => {
+    const withoutCode = payload();
+    withoutCode.payment.code = null;
+    const codeResult = validateRegistrationPayload(withoutCode, config);
+    expect(codeResult.success).toBe(false);
+    if (!codeResult.success) expect(codeResult.errors["payment.code"]).toBeTruthy();
+
+    const withoutEvidence = payload();
+    withoutEvidence.uploads.paymentEvidence = null;
+    const evidenceResult = validateRegistrationPayload(withoutEvidence, config);
+    expect(evidenceResult.success).toBe(false);
+    if (!evidenceResult.success) expect(evidenceResult.errors["uploads.paymentEvidence"]).toBeTruthy();
   });
 
   it("menolak consent yang belum dicentang dengan pesan Indonesia, bukan pesan Zod mentah", () => {

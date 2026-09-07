@@ -6,7 +6,7 @@ import { findScopedCandidateId } from "@/server/candidates/scope";
 
 function toUploadSummary(upload: {
   id: string;
-  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE";
+  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE" | "PAYMENT_EVIDENCE";
   originalFileName: string;
   sizeBytes: number;
   detectedMimeType: string | null;
@@ -128,6 +128,8 @@ export async function getCandidateDetail(
     essayBalance: candidate.essayBalance,
     status: candidate.status,
     submittedAt: candidate.submittedAt.toISOString(),
+    paymentCode: candidate.paymentCode,
+    paymentAmount: candidate.paymentAmount,
     choices: candidate.choices.map((choice) => ({
       departmentId: choice.departmentId,
       departmentName: choice.department.name,
@@ -141,8 +143,9 @@ export async function getCandidateDetail(
     // to narrow the TS type accordingly (Prisma's generated type for a
     // `select`-ed enum column can't reflect a runtime WHERE filter).
     uploads: candidate.uploads
-      .filter((upload): upload is typeof upload & { kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE" } =>
-        upload.kind === "CV" || upload.kind === "PHOTO" || upload.kind === "STUDENT_CARD" || upload.kind === "FOLLOW_EVIDENCE")
+      .filter((upload): upload is typeof upload & { kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE" | "PAYMENT_EVIDENCE" } =>
+        upload.kind === "CV" || upload.kind === "PHOTO" || upload.kind === "STUDENT_CARD" ||
+        upload.kind === "FOLLOW_EVIDENCE" || upload.kind === "PAYMENT_EVIDENCE")
       .map(toUploadSummary),
     supplemental,
     activeLock: activeLock

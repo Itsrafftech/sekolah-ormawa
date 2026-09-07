@@ -30,6 +30,10 @@ const paginationIds = Array.from(
 const uploadValidated = "86000000-0000-4000-8000-000000000001";
 const uploadPending = "86000000-0000-4000-8000-000000000002";
 const fileBytes = new TextEncoder().encode("%PDF-1.4 synthetic candidate cv fixture");
+// "Guidebook, ketentuan, dan pembayaran": periodId+paymentCode is unique -
+// a module-level counter gives every insertCandidate() call in this file
+// a distinct code regardless of how many share this file's one periodId.
+let paymentCodeCounter = 0;
 
 let requireDepartmentAccess: typeof import("@/server/auth/guard").requireDepartmentAccess;
 let listCandidatesForDepartment: typeof import("@/server/candidates/list").listCandidatesForDepartment;
@@ -121,11 +125,13 @@ beforeAll(async () => {
     submittedAt: Date;
     choices: Array<{ departmentId: string; rank: "PRIMARY" | "SECONDARY" }>;
   }) {
+    paymentCodeCounter += 1;
+    const paymentCode = String(paymentCodeCounter).padStart(3, "0");
     await pool.query(
       `INSERT INTO candidates
-        (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgram", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", track)
-       VALUES ($1, $2, $3, $4, $5, $5, 63, 2026, 'Kelas P5', $6, '081200000000', $7, $7, 'Kota Fixture', 'Sintetis', 'Sintetis', 'Sintetis', $8, $9, now(), 'EXECUTIVE')`,
-      [input.id, periodId, `REG-${input.id.slice(-6)}`, input.name, `NIM-${input.id.slice(-6)}`, "Program Studi Dashboard", `${input.id}@example.test`, input.status, input.submittedAt],
+        (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgram", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", track, "paymentCode", "paymentAmount")
+       VALUES ($1, $2, $3, $4, $5, $5, 63, 2026, 'Kelas P5', $6, '081200000000', $7, $7, 'Kota Fixture', 'Sintetis', 'Sintetis', 'Sintetis', $8, $9, now(), 'EXECUTIVE', $10, $11)`,
+      [input.id, periodId, `REG-${input.id.slice(-6)}`, input.name, `NIM-${input.id.slice(-6)}`, "Program Studi Dashboard", `${input.id}@example.test`, input.status, input.submittedAt, paymentCode, 15000 + Number(paymentCode)],
     );
     for (const choice of input.choices) {
       await pool.query(

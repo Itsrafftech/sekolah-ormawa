@@ -66,6 +66,11 @@ const serverEnvironmentSchema = z.object({
   // the max length of an EXTERNAL_LINK portfolio item's URL - same kind
   // of value, just the only kind now).
   PORTFOLIO_URL_MAX_LENGTH: numberFromEnvironment(2048),
+  // "Guidebook, ketentuan, dan pembayaran": base registration fee in
+  // Rupiah before the per-registrant 3-digit unique code is added (e.g.
+  // code "001" -> total 15001). Env-driven like the content-policy values
+  // above so the org can change the fee without a code change.
+  PAYMENT_BASE_AMOUNT: numberFromEnvironment(15000),
   STORAGE_PRIVATE_ROOT: z.string().min(1).default("private"),
   STORAGE_SIGNED_URL_TTL_SECONDS: numberFromEnvironment(300),
   // Phase 9: MinIO (self-hosted, S3-compatible) is the production private

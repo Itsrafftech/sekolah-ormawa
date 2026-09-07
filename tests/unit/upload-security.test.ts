@@ -62,4 +62,19 @@ describe("private upload validation", () => {
       validateUploadFile({ kind: "FOLLOW_EVIDENCE", fileName: "bukti.pdf", declaredMimeType: "application/pdf", bytes: oversized }),
     ).toThrow("Ukuran");
   });
+
+  // "Guidebook, ketentuan, dan pembayaran": JPG/PNG/PDF, 5MB cap.
+  it("menerima PAYMENT_EVIDENCE PDF/JPG/PNG valid, menolak ekstensi lain dan file di atas 5MB", () => {
+    expect(validateUploadFile({ kind: "PAYMENT_EVIDENCE", fileName: "bayar.pdf", declaredMimeType: "application/pdf", bytes: pdf }).detectedMimeType).toBe("application/pdf");
+    expect(validateUploadFile({ kind: "PAYMENT_EVIDENCE", fileName: "bayar.png", declaredMimeType: "image/png", bytes: png }).detectedMimeType).toBe("image/png");
+    expect(validateUploadFile({ kind: "PAYMENT_EVIDENCE", fileName: "bayar.jpg", declaredMimeType: "image/jpeg", bytes: jpeg }).detectedMimeType).toBe("image/jpeg");
+    expect(() =>
+      validateUploadFile({ kind: "PAYMENT_EVIDENCE", fileName: "bayar.exe", declaredMimeType: "image/png", bytes: png }),
+    ).toThrow("Ekstensi");
+    const oversized = new Uint8Array(5 * 1024 * 1024 + 1);
+    oversized.set(pdf);
+    expect(() =>
+      validateUploadFile({ kind: "PAYMENT_EVIDENCE", fileName: "bayar.pdf", declaredMimeType: "application/pdf", bytes: oversized }),
+    ).toThrow("Ukuran");
+  });
 });

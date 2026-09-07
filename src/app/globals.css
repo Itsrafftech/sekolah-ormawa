@@ -21,6 +21,17 @@
   --sand: #ffe264;
   --success: #146c4e;
   --danger: #c81e3a;
+  /* Pre-existing bug fix (found while adding Pembayaran's payment-info-box
+     below, which needed this same token): --burgundy was referenced by
+     .track-option.is-selected, .follow-evidence-instructions,
+     .selection-panel__actions, .selection-dialog__actions, and
+     .selection-admin-panel since earlier phases, but was never actually
+     defined here - every one of those elements has been silently
+     rendering without its intended accent color (var() with no matching
+     custom property and no fallback makes the whole declaration invalid,
+     not an error). Value matches the rgba(122,29,45,*)/rgba(112,35,48,*)
+     tints already used alongside it at each of those call sites. */
+  --burgundy: #7a1d2d;
   --line: rgba(0, 32, 91, 0.13);
   --line-strong: rgba(0, 32, 91, 0.28);
   --display: "Century Gothic", Futura, "Segoe UI", -apple-system, "Helvetica Neue", Arial, sans-serif;
@@ -2507,6 +2518,66 @@ summary:focus-visible {
 .follow-evidence-instructions li { margin-bottom: 4px; }
 .follow-evidence-instructions code { padding: 2px 6px; border: 1px solid var(--line-strong); background: rgba(255,255,255,.5); font-size: 12px; word-break: break-word; }
 .follow-evidence-instructions__example { font-size: 12px; color: var(--ink-soft); }
+
+/* "Guidebook, ketentuan, dan pembayaran": Step 0 banner + checkbox. */
+.guidebook-banner {
+  margin-bottom: 30px;
+  padding: 22px 24px;
+  border-left: 4px solid var(--royal);
+  background: #fff8e0;
+}
+.guidebook-banner__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 20px;
+  border: 1px solid var(--royal);
+  background: var(--royal);
+  color: white;
+  font-weight: 800;
+  font-size: 13px;
+  text-decoration: none;
+}
+.guidebook-banner__link:hover { opacity: .9; }
+.guidebook-banner__checkbox { display: flex; gap: 13px; margin-top: 18px; line-height: 1.55; cursor: pointer; }
+.guidebook-banner__checkbox input { width: 20px; height: 20px; flex: 0 0 auto; accent-color: var(--royal); }
+.guidebook-banner__checkbox.has-error { color: var(--danger); font-weight: 700; }
+
+/* "Guidebook, ketentuan, dan pembayaran": Step 6 Pembayaran. */
+.payment-info-box {
+  margin-bottom: 26px;
+  padding: 22px 24px;
+  border-left: 4px solid var(--burgundy);
+  background: rgba(122,29,45,.06);
+}
+.payment-info-box h3 { margin: 0 0 10px; font-size: 15px; }
+.payment-info-box p { margin: 8px 0; font-size: 13px; line-height: 1.6; }
+.payment-info-box__figures { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin: 14px 0; }
+.payment-info-box__figures dt { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); }
+.payment-info-box__figures dd { margin: 4px 0 0; font-size: 18px; font-weight: 800; }
+.payment-info-box__total { color: var(--burgundy); }
+.payment-info-box__example { font-size: 12px; color: var(--ink-soft); }
+.payment-info-box__error { display: flex; align-items: center; gap: 14px; }
+
+.payment-methods { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; margin-bottom: 26px; }
+.payment-method { padding: 20px; border: 1px solid var(--line-strong); }
+.payment-method h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+.payment-method__number { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 800; }
+.payment-method__copy { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--line-strong); background: none; font-size: 11px; cursor: pointer; }
+.payment-method__qris-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 160px;
+  border: 1px dashed var(--line-strong);
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+.payment-method img { max-width: 100%; }
+
+.payment-instructions { margin-bottom: 26px; padding: 20px 22px; background: var(--paper-deep); }
+.payment-instructions p { margin: 0 0 8px; font-size: 13px; font-weight: 700; }
+.payment-instructions ol { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.7; color: var(--ink-soft); }
 
 .upload-grid { display: grid; gap: 18px; }
 .upload-field {

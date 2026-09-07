@@ -37,6 +37,11 @@ const pdf = new TextEncoder().encode("%PDF-1.4 synthetic integration fixture");
 const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 // Phase D - "Portofolio via URL Google Drive" (ADR-045).
 const driveUrl = "https://drive.google.com/file/d/synthetic-fixture/view";
+// "Guidebook, ketentuan, dan pembayaran": periodId+paymentCode is unique,
+// so every validPayload() call in this file needs a distinct code - safe
+// as a simple incrementing counter since this whole suite runs
+// `describe.sequential`, one test at a time.
+let paymentCodeCounter = 0;
 
 class MemoryStorage implements PrivateStorageAdapter {
   readonly objects = new Map<string, Uint8Array>();
@@ -135,10 +140,10 @@ afterAll(async () => {
 
 async function upload(
   ownerToken: string,
-  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE",
+  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE" | "PAYMENT_EVIDENCE",
   suffix: string,
 ): Promise<UploadReference> {
-  const isPdf = kind === "CV" || kind === "FOLLOW_EVIDENCE";
+  const isPdf = kind === "CV" || kind === "FOLLOW_EVIDENCE" || kind === "PAYMENT_EVIDENCE";
   const result = await createPrivateUpload({
     periodId,
     ownerToken,
@@ -177,8 +182,12 @@ async function validPayload(input: {
   const cv = await upload(input.ownerToken, "CV", `cv-${input.suffix}`);
   const photo = await upload(input.ownerToken, "PHOTO", `photo-${input.suffix}`);
   const followEvidence = await upload(input.ownerToken, "FOLLOW_EVIDENCE", `bukti-${input.suffix}`);
+  const paymentEvidence = await upload(input.ownerToken, "PAYMENT_EVIDENCE", `bayar-${input.suffix}`);
+  paymentCodeCounter += 1;
+  const paymentCode = String(paymentCodeCounter).padStart(3, "0");
   return {
     periodId,
+    guidebookAcknowledged: true,
     identity: {
       name: `Peserta Sintetis ${input.suffix}`,
       nim: `NIM-${input.suffix}`,
@@ -194,8 +203,9 @@ async function validPayload(input: {
       { departmentId: input.primary ?? departmentA, motivation },
       { departmentId: input.secondary ?? departmentB, motivation },
     ],
-    uploads: { cv, photo, studentCard: null, followEvidence },
+    uploads: { cv, photo, studentCard: null, followEvidence, paymentEvidence },
     essays: { organizationExperience: "Sintetis", contribution: "Sintetis", academicBalance: "Sintetis" },
+    payment: { code: paymentCode, amount: 15000 + Number(paymentCode) },
     departmentFields: input.departmentFields ?? {},
     consent: { truthful: true, processing: true, version: "DRAFT-CONSENT-TEST" },
   };
@@ -234,6 +244,64 @@ describe.sequential("Phase 3 registration transaction", () => {
       [result.registrationNumber],
     );
     expect(row.rows[0]).toMatchObject({ kind: "FOLLOW_EVIDENCE", status: "FINALIZED" });
+  });
+
+  // "Guidebook, ketentuan, dan pembayaran".
+  it("menolak pendaftaran tanpa checkbox guidebook, tanpa kode pembayaran, atau tanpa bukti pembayaran", async () => {
+    const suffix = `payment-missing-${randomUUID().slice(0, 8)}`;
+    const ownerToken = `owner-${suffix}`;
+
+    const withoutGuidebook = await validPayload({ ownerToken: `${ownerToken}-a`, suffix: `${suffix}-a` });
+    withoutGuidebook.guidebookAcknowledged = false;
+    await expect(
+      submitRegistration({ payload: withoutGuidebook, ownerToken: `${ownerToken}-a`, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED", fieldErrors: { guidebookAcknowledged: expect.any(String) } });
+
+    const withoutCode = await validPayload({ ownerToken: `${ownerToken}-b`, suffix: `${suffix}-b` });
+    withoutCode.payment.code = null;
+    await expect(
+      submitRegistration({ payload: withoutCode, ownerToken: `${ownerToken}-b`, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED", fieldErrors: { "payment.code": expect.any(String) } });
+
+    const withoutEvidence = await validPayload({ ownerToken: `${ownerToken}-c`, suffix: `${suffix}-c` });
+    withoutEvidence.uploads.paymentEvidence = null;
+    await expect(
+      submitRegistration({ payload: withoutEvidence, ownerToken: `${ownerToken}-c`, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED", fieldErrors: { "uploads.paymentEvidence": expect.any(String) } });
+  });
+
+  it("menyimpan paymentCode/paymentAmount dan FileUpload kind PAYMENT_EVIDENCE setelah submit berhasil", async () => {
+    const suffix = `payment-ok-${randomUUID().slice(0, 8)}`;
+    const ownerToken = `owner-${suffix}`;
+    const payload = await validPayload({ ownerToken, suffix });
+    const result = await submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` });
+    const candidateRow = await pool.query(
+      `SELECT "paymentCode", "paymentAmount" FROM candidates WHERE "registrationNumber" = $1`,
+      [result.registrationNumber],
+    );
+    expect(candidateRow.rows[0].paymentCode).toBe(payload.payment.code);
+    expect(candidateRow.rows[0].paymentAmount).toBe(15000 + Number(payload.payment.code));
+    const uploadRow = await pool.query(
+      `SELECT f.kind, f.status FROM file_uploads f JOIN candidates c ON c.id = f."candidateId"
+       WHERE c."registrationNumber" = $1 AND f.kind = 'PAYMENT_EVIDENCE'`,
+      [result.registrationNumber],
+    );
+    expect(uploadRow.rows[0]).toMatchObject({ kind: "PAYMENT_EVIDENCE", status: "FINALIZED" });
+  });
+
+  it("menolak submit kedua dengan kode pembayaran yang sudah dipakai kandidat lain di periode yang sama", async () => {
+    const suffixA = `payment-dup-a-${randomUUID().slice(0, 8)}`;
+    const ownerTokenA = `owner-${suffixA}`;
+    const payloadA = await validPayload({ ownerToken: ownerTokenA, suffix: suffixA });
+    await submitRegistration({ payload: payloadA, ownerToken: ownerTokenA, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` });
+
+    const suffixB = `payment-dup-b-${randomUUID().slice(0, 8)}`;
+    const ownerTokenB = `owner-${suffixB}`;
+    const payloadB = await validPayload({ ownerToken: ownerTokenB, suffix: suffixB });
+    payloadB.payment.code = payloadA.payment.code;
+    await expect(
+      submitRegistration({ payload: payloadB, ownerToken: ownerTokenB, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+    ).rejects.toMatchObject({ code: "DUPLICATE_CANDIDATE" });
   });
 
   it.each([

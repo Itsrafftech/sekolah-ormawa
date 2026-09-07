@@ -202,6 +202,15 @@ model RecruitmentPeriod {
   entryYear            Int?
   registrationPrefix   String?
   registrationSequence Int                 @default(0)
+  // "Guidebook, ketentuan, dan pembayaran": atomic per-period counter for
+  // Candidate.paymentCode, same pattern as registrationSequence above (a
+  // single-row UPDATE...increment, race-free under Postgres read-committed
+  // without needing Serializable) - incremented by GET
+  // /api/registration/payment-code when a registrant reaches the Payment
+  // step, not at final submit time, since the code must be shown/paid
+  // before submission. Gaps from abandoned registrations are accepted,
+  // same as registrationSequence's own documented gap tolerance.
+  paymentCodeSequence  Int                 @default(0)
   opensAt              DateTime?
   closesAt             DateTime?
   choice2Required      Boolean             @default(true)
@@ -289,6 +298,19 @@ model Candidate {
   // EXECUTIVE, then sets NOT NULL - every raw-SQL test fixture that
   // creates a candidate was updated to pass `track` explicitly too.
   track              Track
+  // "Guidebook, ketentuan, dan pembayaran": 3-digit code (zero-padded,
+  // e.g. "001") assigned atomically per period (RecruitmentPeriod.
+  // paymentCodeSequence) when the registrant reaches the Payment step -
+  // required NOT NULL like registrationNumber's sibling fields, no
+  // DB-level default, so every candidate.create() call site is forced to
+  // supply it explicitly (same defensive pattern as `track` above).
+  // paymentAmount is always PAYMENT_BASE_AMOUNT + paymentCode as an
+  // integer - computed server-side from the authoritative code, never
+  // trusted from the client, and stored (not just derived on read) so the
+  // exact amount a candidate was told to pay is preserved even if
+  // PAYMENT_BASE_AMOUNT changes later.
+  paymentCode        String
+  paymentAmount      Int
   consentVersion     String?
   consentedAt        DateTime?
   submittedAt        DateTime                   @default(now())
@@ -316,6 +338,12 @@ model Candidate {
 
   @@unique([periodId, normalizedNim])
   @@unique([periodId, normalizedEmail])
+  // "Guidebook, ketentuan, dan pembayaran": guarantees no two candidates in
+  // the same period ever share a payment code, as a DB-level backstop on
+  // top of the atomic counter above. Not partial (no WHERE clause) since
+  // paymentCode is NOT NULL for every row - unlike CandidateLock's
+  // "one active lock" partial index, there is no NULL case to exclude here.
+  @@unique([periodId, paymentCode])
   @@index([periodId, status, submittedAt, id])
   @@index([deletedAt])
   @@map("candidates")
@@ -612,6 +640,15 @@ enum ChoiceRank {
 /// exactly like CV/PHOTO/STUDENT_CARD (no dedicated Candidate columns),
 /// since it is structurally identical to those: one file, one owner, one
 /// lifecycle, already-authorized viewer route.
+///
+/// PAYMENT_EVIDENCE ("Guidebook, ketentuan, dan pembayaran"): one required
+/// payment screenshot/receipt per candidate - same reasoning as
+/// FOLLOW_EVIDENCE (one file, one owner, one lifecycle, same viewer
+/// route). Unlike the payment code/amount themselves (which ARE dedicated
+/// Candidate columns - paymentCode/paymentAmount above - because the spec
+/// explicitly asked for that and they are small typed values, not files),
+/// the evidence file reuses this generic mechanism rather than getting
+/// its own object-key column on Candidate.
 enum UploadKind {
   CV
   PHOTO
@@ -619,6 +656,7 @@ enum UploadKind {
   PORTFOLIO
   BUDGET_PLAN
   FOLLOW_EVIDENCE
+  PAYMENT_EVIDENCE
 }
 
 enum UploadStatus {

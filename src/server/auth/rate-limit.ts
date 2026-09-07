@@ -15,6 +15,13 @@ export type RateLimitScope =
   | "REGISTRATION_SUBMIT"
   | "REGISTRATION_UPLOAD"
   | "REGISTRATION_DOWNLOAD"
+  // "Guidebook, ketentuan, dan pembayaran": GET /api/registration/
+  // payment-code mutates state (burns an atomic per-period sequence
+  // number) despite being a GET - rate limiting per IP is the primary
+  // defense against someone exhausting the 3-digit code space, since this
+  // endpoint deliberately does NOT run assertValidCsrf (see that route for
+  // why a GET-shaped mutation doesn't fit that check).
+  | "REGISTRATION_PAYMENT_CODE"
   | "ADMIN_FILE_ACCESS"
   | "ADMIN_EXPORT"
   | "ADMIN_BROADCAST_SEND";

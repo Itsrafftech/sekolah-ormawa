@@ -12,7 +12,9 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
+  BookOpen,
   Check,
+  Copy,
   FileText,
   Save,
   ShieldCheck,
@@ -37,15 +39,32 @@ import {
   type FieldErrors,
 } from "@/features/registration/validation";
 
+// "Guidebook, ketentuan, dan pembayaran": reordered per spec - Esai &
+// Portofolio now comes BEFORE Bukti Follow dan Share (previously the
+// other way around, from "persyaratan follow dan share"), and Pembayaran
+// is a new step inserted before Review & Submit.
 const steps = [
-  ["00", "Jalur"],
+  ["00", "Guidebook & Jalur"],
   ["01", "Identitas"],
   ["02", "Pilihan Birdep"],
   ["03", "Dokumen"],
-  ["04", "Bukti Follow dan Share"],
-  ["05", "Esai & Portofolio"],
-  ["06", "Review & Submit"],
+  ["04", "Esai & Portofolio"],
+  ["05", "Bukti Follow dan Share"],
+  ["06", "Pembayaran"],
+  ["07", "Review & Submit"],
 ] as const;
+
+// "Guidebook, ketentuan, dan pembayaran". Opens in a new tab per spec.
+const GUIDEBOOK_URL = "https://drive.google.com/drive/folders/1HE9Adis3C5pRl2U4CHUQwhzQV2bZ9oDZ?usp=sharing";
+
+// Gopay per spec - QRIS image not supplied yet (uploaded manually later to
+// public/images/qris.png), see QrisPlaceholder below.
+const GOPAY_NUMBER = "081273239606";
+const GOPAY_NAME = "Farhanah Nurul Lathifah";
+
+function formatRupiah(value: number): string {
+  return `Rp ${value.toLocaleString("id-ID")}`;
+}
 
 const TRACK_LABEL: Record<Track, string> = {
   EXECUTIVE: "Eksekutif PKU",
@@ -92,7 +111,12 @@ function departmentAllowsBudgetPlan(department: PublicDepartmentOption | undefin
   return department?.code === "KOMANGG";
 }
 
-type DraftPayload = Pick<RegistrationPayload, "identity" | "choices" | "essays" | "track" | "departmentFields">;
+// "Guidebook, ketentuan, dan pembayaran": `payment` is included here
+// (unlike `uploads`, which is deliberately never persisted to
+// localStorage - Phase 3 decision, ADR-019) because it holds only a text
+// code + amount, not a file/upload reference - same reasoning that
+// already applies to every other field in this Pick.
+type DraftPayload = Pick<RegistrationPayload, "identity" | "choices" | "essays" | "track" | "guidebookAcknowledged" | "payment" | "departmentFields">;
 
 type SavedDraft = {
   periodId: string;
@@ -107,6 +131,7 @@ function emptyPayload(config: RegistrationFormConfig): RegistrationPayload {
   return {
     periodId: config.periodId,
     track: undefined,
+    guidebookAcknowledged: false,
     identity: {
       name: "",
       nim: "",
@@ -122,8 +147,11 @@ function emptyPayload(config: RegistrationFormConfig): RegistrationPayload {
       { departmentId: "", motivation: "" },
       { departmentId: "", motivation: "" },
     ],
-    uploads: { cv: null, photo: null, studentCard: null, followEvidence: null },
+    uploads: { cv: null, photo: null, studentCard: null, followEvidence: null, paymentEvidence: null },
     essays: { organizationExperience: "", contribution: "", academicBalance: "" },
+    // "Guidebook, ketentuan, dan pembayaran": null until PaymentStep fetches
+    // it once from GET /api/registration/payment-code.
+    payment: { code: null, amount: null },
     // Phase C - "Field Khusus Per Birdep": empty object, not per-field
     // undefined literals - all keys stay optional/absent until the
     // relevant Birdep is chosen and the candidate fills them in.
@@ -225,9 +253,15 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
       const current = latestPayload.current;
       const data: DraftPayload = {
         track: current.track,
+        guidebookAcknowledged: current.guidebookAcknowledged,
         identity: current.identity,
         choices: current.choices,
         essays: current.essays,
+        // "Guidebook, ketentuan, dan pembayaran": persisted so the code
+        // assigned by GET /api/registration/payment-code is never
+        // re-issued on reload/revisit - PaymentStep only fetches a new one
+        // when this is still null.
+        payment: current.payment,
         // Phase C - "Field Khusus Per Birdep", extended Phase D (ADR-045)
         // with portfolioUrl/budgetPlanUrl: text values only ("Draft
         // localStorage menyimpan nilai text/radio, tidak menyimpan file")
@@ -277,6 +311,11 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
     const errors: FieldErrors = {};
     if (targetStep === 0) {
       if (!payload.track) errors.track = "Pilih jalur pendaftaran.";
+      // "Guidebook, ketentuan, dan pembayaran": required before the
+      // registrant can leave Step 0 at all.
+      if (!payload.guidebookAcknowledged) {
+        errors.guidebookAcknowledged = "Kamu wajib mencentang bahwa sudah membaca guidebook dan ketentuan pendaftaran.";
+      }
     }
     if (targetStep === 1) {
       if (payload.identity.name.trim().length < 2) errors["identity.name"] = "Nama lengkap wajib diisi.";
@@ -313,14 +352,10 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
       if (!payload.uploads.cv) errors["uploads.cv"] = "CV PDF wajib diunggah.";
       if (!payload.uploads.photo) errors["uploads.photo"] = "Pas foto wajib diunggah.";
     }
+    // "Guidebook, ketentuan, dan pembayaran": Esai & Portofolio (was Step
+    // 5) moved to Step 4, now BEFORE Bukti Follow dan Share (was Step 4,
+    // now Step 5) - reordered per spec.
     if (targetStep === 4) {
-      // UAT feedback - "persyaratan follow dan share": required for every
-      // registrant regardless of track/department.
-      if (!payload.uploads.followEvidence) {
-        errors["uploads.followEvidence"] = "Bukti follow dan share (PDF) wajib diunggah.";
-      }
-    }
-    if (targetStep === 5) {
       Object.entries(payload.essays).forEach(([key, value]) => {
         const words = countWords(value);
         if (words < config.essayMinWords || words > config.essayMaxWords) {
@@ -346,7 +381,23 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
         errors["departmentFields.budgetPlanUrl"] = "Link harus berupa URL Google Drive yang valid (https://drive.google.com/...).";
       }
     }
+    if (targetStep === 5) {
+      // UAT feedback - "persyaratan follow dan share": required for every
+      // registrant regardless of track/department.
+      if (!payload.uploads.followEvidence) {
+        errors["uploads.followEvidence"] = "Bukti follow dan share (PDF) wajib diunggah.";
+      }
+    }
+    // "Guidebook, ketentuan, dan pembayaran": new step.
     if (targetStep === 6) {
+      if (!payload.payment.code) {
+        errors["payment.code"] = "Kode pembayaran belum dibuat. Muat ulang halaman ini.";
+      }
+      if (!payload.uploads.paymentEvidence) {
+        errors["uploads.paymentEvidence"] = "Bukti pembayaran wajib diunggah.";
+      }
+    }
+    if (targetStep === 7) {
       if (!payload.consent.truthful) errors["consent.truthful"] = "Pernyataan kebenaran data wajib disetujui.";
       if (!payload.consent.processing) errors["consent.processing"] = "Persetujuan pemrosesan data wajib diberikan.";
     }
@@ -360,7 +411,7 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
 
   function nextStep() {
     if (validateStep(step)) {
-      setStep((current) => Math.min(6, current + 1));
+      setStep((current) => Math.min(7, current + 1));
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }
@@ -437,7 +488,7 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
       <header className="registration-intro">
         <div>
           <p className="eyebrow">Formulir pendaftaran / {config.periodName}</p>
-          <h1 id="registration-title">Tujuh langkah menuju satu keputusan yang matang.</h1>
+          <h1 id="registration-title">Delapan langkah menuju satu keputusan yang matang.</h1>
         </div>
         <div className="draft-control" aria-live="polite">
           <Save aria-hidden="true" size={16} />
@@ -478,7 +529,7 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
 
       <form className="registration-form" noValidate onSubmit={(event) => event.preventDefault()}>
         {step === 0 ? (
-          <TrackStep departmentsByTrack={departmentsByTrack} errors={fieldErrors} payload={payload} chooseTrack={chooseTrack} />
+          <TrackStep departmentsByTrack={departmentsByTrack} errors={fieldErrors} payload={payload} chooseTrack={chooseTrack} mutate={mutate} />
         ) : null}
         {step === 1 ? (
           <IdentityStep config={config} errors={fieldErrors} payload={payload} mutate={mutate} />
@@ -497,10 +548,11 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
         {step === 3 ? (
           <DocumentStep config={config} errors={fieldErrors} payload={payload} mutate={mutate} />
         ) : null}
+        {/* "Guidebook, ketentuan, dan pembayaran": Esai & Portofolio now
+            renders at Step 4 (before Bukti Follow dan Share at Step 5) -
+            reordered per spec, swapped from "persyaratan follow dan
+            share"'s original 4/5 order. */}
         {step === 4 ? (
-          <FollowEvidenceStep config={config} errors={fieldErrors} payload={payload} mutate={mutate} />
-        ) : null}
-        {step === 5 ? (
           <EssayPortfolioStep
             config={config}
             errors={fieldErrors}
@@ -510,7 +562,13 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
             mutate={mutate}
           />
         ) : null}
+        {step === 5 ? (
+          <FollowEvidenceStep config={config} errors={fieldErrors} payload={payload} mutate={mutate} />
+        ) : null}
         {step === 6 ? (
+          <PaymentStep config={config} errors={fieldErrors} payload={payload} mutate={mutate} />
+        ) : null}
+        {step === 7 ? (
           <ReviewStep
             departmentsByTrack={departmentsByTrack}
             config={config}
@@ -530,8 +588,8 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
           <ArrowLeft aria-hidden="true" size={17} /> Sebelumnya
         </button>
         <span>Langkah {step + 1} dari {steps.length}</span>
-        {step < 6 ? (
-          <button className="button button--primary" disabled={step === 0 && !payload.track} onClick={nextStep} type="button">
+        {step < 7 ? (
+          <button className="button button--primary" disabled={step === 0 && (!payload.track || !payload.guidebookAcknowledged)} onClick={nextStep} type="button">
             Simpan & lanjut <ArrowRight aria-hidden="true" size={17} />
           </button>
         ) : (
@@ -551,11 +609,12 @@ type StepProps = {
   mutate: (mutator: (current: RegistrationPayload) => RegistrationPayload) => void;
 };
 
-function TrackStep({ departmentsByTrack, errors, payload, chooseTrack }: {
+function TrackStep({ departmentsByTrack, errors, payload, chooseTrack, mutate }: {
   departmentsByTrack: DepartmentsByTrack;
   errors: FieldErrors;
   payload: RegistrationPayload;
   chooseTrack: (track: Track) => void;
+  mutate: (mutator: (current: RegistrationPayload) => RegistrationPayload) => void;
 }) {
   const options: Array<{ track: Track; description: string; count: number }> = [
     {
@@ -569,8 +628,27 @@ function TrackStep({ departmentsByTrack, errors, payload, chooseTrack }: {
       count: departmentsByTrack.legislative.length,
     },
   ];
+  const setGuidebookAcknowledged = (value: boolean) =>
+    mutate((current) => ({ ...current, guidebookAcknowledged: value }));
   return (
     <StepFrame number="00" eyebrow="Sebelum memilih Birdep" title="Pilih jalur pendaftaran">
+      {/* "Guidebook, ketentuan, dan pembayaran": prominent banner + wajib
+          checkbox, rendered before the Jalur picker per spec. */}
+      <div className="guidebook-banner">
+        <a href={GUIDEBOOK_URL} target="_blank" rel="noopener noreferrer" className="guidebook-banner__link">
+          <BookOpen aria-hidden="true" size={20} /> Baca Guidebook & Ketentuan Pendaftaran
+        </a>
+        <label className={`guidebook-banner__checkbox${errors.guidebookAcknowledged ? " has-error" : ""}`} id={fieldId("guidebookAcknowledged")}>
+          <input
+            checked={payload.guidebookAcknowledged ?? false}
+            onChange={(event) => setGuidebookAcknowledged(event.target.checked)}
+            type="checkbox"
+          />
+          <span>Saya sudah membaca guidebook dan ketentuan pendaftaran.</span>
+        </label>
+        {errors.guidebookAcknowledged ? <p className="field-error">{errors.guidebookAcknowledged}</p> : null}
+      </div>
+
       <fieldset className="track-picker" id={fieldId("track")}>
         <legend className="sr-only">Jalur pendaftaran</legend>
         <div className="track-picker__grid">
@@ -829,7 +907,7 @@ function FollowEvidenceStep({ config, errors, payload, mutate }: StepProps) {
   const setUpload = (upload: UploadReference | null) =>
     mutate((current) => ({ ...current, uploads: { ...current.uploads, followEvidence: upload } }));
   return (
-    <StepFrame number="04" eyebrow="Wajib untuk semua pendaftar" title="Bukti Follow dan Share">
+    <StepFrame number="05" eyebrow="Wajib untuk semua pendaftar" title="Bukti Follow dan Share">
       <div className="follow-evidence-instructions">
         <p>Sebelum mendaftar, pastikan kamu sudah:</p>
         <ol>
@@ -885,7 +963,7 @@ function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allows
     ["academicBalance", "Cara menyeimbangkan akademik dan organisasi"],
   ] as const;
   return (
-    <StepFrame number="05" eyebrow="Cerita dan bukti karya" title="Esai & portofolio bersyarat">
+    <StepFrame number="04" eyebrow="Cerita dan bukti karya" title="Esai & portofolio bersyarat">
       <div className="essay-stack">
         {essayFields.map(([key, label]) => <Field key={key} id={`essays.${key}`} label={label} error={errors[`essays.${key}`]} hint={`${config.essayMinWords}-${config.essayMaxWords} kata · ${countWords(payload.essays[key])} kata`}><textarea id={`${fieldId(`essays.${key}`)}-control`} value={payload.essays[key]} onChange={(event) => updateEssay(key, event.target.value)} rows={7} /></Field>)}
       </div>
@@ -945,6 +1023,138 @@ function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allows
   );
 }
 
+// "Guidebook, ketentuan, dan pembayaran": always renders (not conditional
+// on track/department, same as FollowEvidenceStep) between Bukti Follow
+// dan Share (Step 5) and Review & Submit (Step 7). The payment code is
+// fetched exactly once - the effect below only calls the API when
+// `payload.payment.code` is still null, and the result is immediately
+// written back into payload (persisted to the localStorage draft by the
+// parent's existing draft-save effect), so revisiting this step or
+// reloading the page never re-issues a new code.
+function PaymentStep({ config, errors, payload, mutate }: StepProps) {
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [fetching, setFetching] = useState(false);
+  const [qrisFailed, setQrisFailed] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const requestedRef = useRef(false);
+
+  function fetchCode() {
+    requestedRef.current = true;
+    setFetching(true);
+    setFetchError(null);
+    fetch(`/api/registration/payment-code?periodId=${encodeURIComponent(config.periodId)}`)
+      .then(async (response) => {
+        const result = await response.json() as { code?: string; amount?: number; error?: string };
+        if (!response.ok || !result.code || !result.amount) {
+          throw new Error(result.error ?? "Gagal membuat kode pembayaran.");
+        }
+        mutate((current) => ({ ...current, payment: { code: result.code!, amount: result.amount! } }));
+      })
+      .catch((error: unknown) => {
+        requestedRef.current = false;
+        setFetchError(error instanceof Error ? error.message : "Gagal membuat kode pembayaran.");
+      })
+      .finally(() => setFetching(false));
+  }
+
+  useEffect(() => {
+    if (payload.payment.code || requestedRef.current) return;
+    fetchCode();
+    // Runs once per mount (guarded by requestedRef + the payload.payment.code
+    // check above) - config.periodId is stable for the life of this form,
+    // fetchCode is a plain function recreated each render and intentionally
+    // excluded so this effect doesn't re-run on every keystroke elsewhere
+    // in the form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const setEvidence = (upload: UploadReference | null) =>
+    mutate((current) => ({ ...current, uploads: { ...current.uploads, paymentEvidence: upload } }));
+
+  const copyGopayNumber = () => {
+    navigator.clipboard.writeText(GOPAY_NUMBER).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    }).catch(() => undefined);
+  };
+
+  return (
+    <StepFrame number="06" eyebrow="Wajib untuk semua pendaftar" title="Pembayaran">
+      <div className="payment-info-box" id={fieldId("payment.code")}>
+        <h3>Biaya Pendaftaran Sekolah Ormawa</h3>
+        {fetching ? <p>Membuat kode unik kamu...</p> : null}
+        {fetchError ? (
+          <div className="payment-info-box__error">
+            <p className="field-error">{fetchError}</p>
+            <button type="button" className="button button--outline" onClick={fetchCode}>
+              Coba lagi
+            </button>
+          </div>
+        ) : null}
+        {payload.payment.code ? (
+          <>
+            <p>{formatRupiah(config.paymentBaseAmount)} + kode unik kamu</p>
+            <dl className="payment-info-box__figures">
+              <div><dt>Kode unik kamu</dt><dd>{payload.payment.code}</dd></div>
+              <div><dt>Total yang harus dibayar</dt><dd className="payment-info-box__total">{formatRupiah(payload.payment.amount ?? config.paymentBaseAmount)}</dd></div>
+            </dl>
+            <p className="payment-info-box__example">
+              Contoh: jika kode unik {payload.payment.code}, bayar {formatRupiah(config.paymentBaseAmount + Number(payload.payment.code))}.
+            </p>
+          </>
+        ) : null}
+        {errors["payment.code"] ? <p className="field-error">{errors["payment.code"]}</p> : null}
+      </div>
+
+      <div className="payment-methods">
+        <article className="payment-method">
+          <h3>Gopay</h3>
+          <p className="payment-method__number">
+            {GOPAY_NUMBER}
+            <button type="button" className="payment-method__copy" onClick={copyGopayNumber} aria-label="Salin nomor Gopay">
+              <Copy aria-hidden="true" size={14} /> {copied ? "Tersalin" : "Salin"}
+            </button>
+          </p>
+          <p>a.n. {GOPAY_NAME}</p>
+        </article>
+        <article className="payment-method">
+          <h3>QRIS</h3>
+          {qrisFailed ? (
+            <div className="payment-method__qris-placeholder">[QRIS akan tersedia]</div>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element -- static asset placeholder, uploaded manually later (see spec)
+            <img src="/images/qris.png" alt="QRIS Sekolah Ormawa" onError={() => setQrisFailed(true)} />
+          )}
+        </article>
+      </div>
+
+      <div className="payment-instructions">
+        <p>Cara pembayaran:</p>
+        <ol>
+          <li>Transfer via Gopay ke {GOPAY_NUMBER} (a.n. {GOPAY_NAME}) atau scan QRIS</li>
+          <li>Nominal WAJIB sesuai total di atas (Rp {config.paymentBaseAmount.toLocaleString("id-ID")} + kode unik)</li>
+          <li>Screenshot bukti pembayaran</li>
+          <li>Upload di bawah ini</li>
+        </ol>
+      </div>
+
+      <div className="upload-grid">
+        <UploadField
+          config={config}
+          id="uploads.paymentEvidence"
+          label="Bukti Pembayaran"
+          accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+          detail="Wajib · JPG/PNG/PDF · maksimum 5 MB"
+          error={errors["uploads.paymentEvidence"]}
+          kind="PAYMENT_EVIDENCE"
+          value={payload.uploads.paymentEvidence}
+          onChange={setEvidence}
+        />
+      </div>
+    </StepFrame>
+  );
+}
+
 function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortfolio, requiresMbti, requiresAdkesmahFocus, allowsBudgetPlan, mutate }: StepProps & {
   departmentsByTrack: DepartmentsByTrack;
   requiresPortfolio: boolean;
@@ -960,9 +1170,9 @@ function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortf
     config.departments.find((item) => item.id === id)?.name ?? "-";
   const setConsent = (key: "truthful" | "processing", value: boolean) => mutate((current) => ({ ...current, consent: { ...current.consent, [key]: value } }));
   return (
-    <StepFrame number="06" eyebrow="Periksa sebelum commit" title="Review & persetujuan">
+    <StepFrame number="07" eyebrow="Periksa sebelum commit" title="Review & persetujuan">
       <div className="review-sheet">
-        <ReviewSection title="Jalur Pendaftaran"><dl><ReviewItem label="Jalur" value={payload.track ? TRACK_LABEL[payload.track] : "-"} /></dl></ReviewSection>
+        <ReviewSection title="Jalur Pendaftaran"><dl><ReviewItem label="Jalur" value={payload.track ? TRACK_LABEL[payload.track] : "-"} /><ReviewItem label="Guidebook & ketentuan" value={payload.guidebookAcknowledged ? "Sudah dibaca" : "-"} /></dl></ReviewSection>
         <ReviewSection title="Identitas"><dl><ReviewItem label="Nama" value={payload.identity.name} /><ReviewItem label="NIM" value={payload.identity.nim} /><ReviewItem label="Angkatan / tahun masuk" value={`${payload.identity.cohortCode} / ${payload.identity.entryYear}`} /><ReviewItem label="Prodi" value={payload.identity.studyProgram} /><ReviewItem label="Kelas" value={payload.identity.className} /><ReviewItem label="WhatsApp" value={payload.identity.phone} /><ReviewItem label="Email" value={payload.identity.email} /><ReviewItem label="Domisili" value={payload.identity.domicile} /></dl></ReviewSection>
         <ReviewSection title="Pilihan Birdep">{payload.choices.map((choice, index) => <article key={index}><strong>Pilihan {index + 1} · {department(choice.departmentId)}</strong><p>{choice.motivation}</p></article>)}</ReviewSection>
         {requiresMbti || requiresAdkesmahFocus || requiresPortfolio || allowsBudgetPlan ? (
@@ -982,6 +1192,13 @@ function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortf
         ) : null}
         <ReviewSection title="Dokumen"><ul><li>CV · {payload.uploads.cv ? `${payload.uploads.cv.name} (${formatBytes(payload.uploads.cv.sizeBytes)})` : "Belum ada"}</li><li>Pas foto · {payload.uploads.photo ? `${payload.uploads.photo.name} (${formatBytes(payload.uploads.photo.sizeBytes)})` : "Belum ada"}</li><li>KTM · {payload.uploads.studentCard ? `${payload.uploads.studentCard.name} (${formatBytes(payload.uploads.studentCard.sizeBytes)})` : "Tidak dilampirkan"}</li><li>Bukti Follow dan Share · {payload.uploads.followEvidence ? `${payload.uploads.followEvidence.name} (${formatBytes(payload.uploads.followEvidence.sizeBytes)})` : "Belum ada"}</li></ul></ReviewSection>
         <ReviewSection title="Esai"><article><strong>Pengalaman organisasi</strong><p>{payload.essays.organizationExperience}</p></article><article><strong>Kontribusi untuk Pilihan 1</strong><p>{payload.essays.contribution}</p></article><article><strong>Keseimbangan akademik</strong><p>{payload.essays.academicBalance}</p></article></ReviewSection>
+        <ReviewSection title="Pembayaran">
+          <dl>
+            <ReviewItem label="Kode unik" value={payload.payment.code ?? ""} />
+            <ReviewItem label="Total dibayar" value={payload.payment.amount ? formatRupiah(payload.payment.amount) : ""} />
+          </dl>
+          <ul><li>Bukti pembayaran · {payload.uploads.paymentEvidence ? `${payload.uploads.paymentEvidence.name} (${formatBytes(payload.uploads.paymentEvidence.sizeBytes)})` : "Belum ada"}</li></ul>
+        </ReviewSection>
       </div>
       <div className="consent-panel">
         <div className="consent-panel__version"><span>DRAFT DEVELOPMENT</span><strong>Versi consent: {config.consentVersion}</strong><p>Ini bukan kebijakan legal final dan submission production tetap fail-closed untuk consent DRAFT.</p></div>

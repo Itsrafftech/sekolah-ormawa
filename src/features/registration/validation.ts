@@ -48,11 +48,21 @@ export function isValidGoogleDriveUrl(value: string, maxLength: number): boolean
 
 const uploadReferenceSchema = z.object({
   id: z.uuid(),
-  kind: z.enum(["CV", "PHOTO", "STUDENT_CARD", "FOLLOW_EVIDENCE"]),
+  kind: z.enum(["CV", "PHOTO", "STUDENT_CARD", "FOLLOW_EVIDENCE", "PAYMENT_EVIDENCE"]),
   name: z.string().min(1).max(255),
   sizeBytes: z.number().int().positive(),
   mimeType: z.string().min(1).max(127),
 });
+
+// "Guidebook, ketentuan, dan pembayaran": the code itself is assigned by
+// GET /api/registration/payment-code, not chosen/typed by the registrant -
+// this only checks the SHAPE of whatever the client echoes back (digits
+// only, at least 3 - not capped at exactly 3 since a period past 999
+// registrants still issues a longer, still-valid code, see that route's
+// comment). Uniqueness/correctness is enforced by the DB unique
+// constraint (periodId, paymentCode) and by submit.ts recomputing amount
+// server-side - this schema check alone is not a security boundary.
+const paymentCodeSchema = z.string().trim().regex(/^\d{3,}$/u, "Kode pembayaran tidak valid.");
 
 // Phase C - "Field Khusus Per Birdep". Format valid: 4 huruf, kombinasi
 // I/E + N/S + T/F + J/P (16 tipe MBTI). Normalisasi uppercase terjadi di
@@ -70,6 +80,11 @@ const payloadSchema = z.object({
   // yet - validateRegistrationPayload below treats a missing value as
   // EXECUTIVE, matching submit.ts's own default.
   track: z.enum(["EXECUTIVE", "LEGISLATIVE"]).optional(),
+  // "Guidebook, ketentuan, dan pembayaran": optional at the schema level
+  // for the same reason as `track` (a caller/draft that predates this
+  // field shouldn't hard-fail schema parsing) - the business-logic
+  // section below is what actually enforces it must be `true`.
+  guidebookAcknowledged: z.boolean().optional(),
   identity: z.object({
     name: z.string().trim().min(2).max(160),
     nim: z.string().trim().min(3).max(40),
@@ -93,11 +108,22 @@ const payloadSchema = z.object({
     photo: uploadReferenceSchema.nullable(),
     studentCard: uploadReferenceSchema.nullable(),
     followEvidence: uploadReferenceSchema.nullable(),
+    paymentEvidence: uploadReferenceSchema.nullable(),
   }),
   essays: z.object({
     organizationExperience: z.string().trim(),
     contribution: z.string().trim(),
     academicBalance: z.string().trim(),
+  }),
+  // "Guidebook, ketentuan, dan pembayaran": `code` nullable at the schema
+  // level (the client hasn't reached the Payment step yet on early
+  // steps/drafts) - required non-null by the business-logic section
+  // below, which is what actually runs at submit time. `amount` is
+  // accepted but never trusted - submit.ts always recomputes it from
+  // `code` alone server-side.
+  payment: z.object({
+    code: paymentCodeSchema.nullable(),
+    amount: z.number().int().positive().nullable(),
   }),
   // Phase C - "Field Khusus Per Birdep". All optional at the schema level
   // (requiredness depends on which Birdep was chosen - checked below,
@@ -193,12 +219,25 @@ export function validateRegistrationPayload(
     }
   });
 
+  // "Guidebook, ketentuan, dan pembayaran": required for every registrant,
+  // checked at Step 0 before anything else can be filled in.
+  if (!data.guidebookAcknowledged) {
+    errors.guidebookAcknowledged = "Kamu wajib mencentang bahwa sudah membaca guidebook dan ketentuan pendaftaran.";
+  }
+
   if (!data.uploads.cv) errors["uploads.cv"] = "CV PDF wajib diunggah.";
   if (!data.uploads.photo) errors["uploads.photo"] = "Pas foto wajib diunggah.";
   // UAT feedback - "persyaratan follow dan share": required for every
   // registrant regardless of track/department.
   if (!data.uploads.followEvidence) {
     errors["uploads.followEvidence"] = "Bukti follow dan share (PDF) wajib diunggah.";
+  }
+  // "Guidebook, ketentuan, dan pembayaran": required for every registrant.
+  if (!data.payment.code) {
+    errors["payment.code"] = "Kode pembayaran belum dibuat. Kembali ke langkah Pembayaran.";
+  }
+  if (!data.uploads.paymentEvidence) {
+    errors["uploads.paymentEvidence"] = "Bukti pembayaran wajib diunggah.";
   }
 
   const selectedCodes = data.choices.map(

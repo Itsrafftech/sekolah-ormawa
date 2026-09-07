@@ -33,6 +33,10 @@ const UPLOAD_LABEL: Record<string, string> = {
   FOLLOW_EVIDENCE: "Bukti Follow dan Share",
 };
 
+function formatRupiah(value: number): string {
+  return `Rp ${value.toLocaleString("id-ID")}`;
+}
+
 // Phase C - "Field Khusus Per Birdep" (ADR-043).
 const ADKESMAH_FOCUS_LABEL: Record<string, string> = {
   ADVOCACY: "Advokasi Mahasiswa",
@@ -53,6 +57,13 @@ export default async function CandidateDetailPage({ params, searchParams }: Page
   const notes = (await listDepartmentNotes(id, departmentId)) ?? [];
   const backHref = context.role === "SUPER_ADMIN" ? `/admin/dashboard?departmentId=${departmentId}` : "/admin/dashboard";
   const fileHref = (fileId: string) => `/api/admin/candidates/${id}/files/${fileId}?departmentId=${departmentId}`;
+  // "Guidebook, ketentuan, dan pembayaran": shown in its own "Pembayaran"
+  // card alongside paymentCode/paymentAmount, not the generic "Dokumen"
+  // list - same visibility as Dokumen (whichever PJ can see this
+  // candidate, plus Super Admin), just grouped with the other payment
+  // fields for a reviewer verifying payment manually.
+  const paymentEvidence = candidate.uploads.find((upload) => upload.kind === "PAYMENT_EVIDENCE");
+  const documentUploads = candidate.uploads.filter((upload) => upload.kind !== "PAYMENT_EVIDENCE");
 
   return (
     <main className="admin-placeholder" id="main-content">
@@ -107,14 +118,37 @@ export default async function CandidateDetailPage({ params, searchParams }: Page
         <div className="candidate-detail__card">
           <h2>Dokumen</h2>
           <ul className="candidate-detail__files">
-            {candidate.uploads.map((upload) => (
+            {documentUploads.map((upload) => (
               <li key={upload.id}>
                 <a href={fileHref(upload.id)} target="_blank" rel="noopener noreferrer">
                   <FileText aria-hidden="true" size={15} /> {UPLOAD_LABEL[upload.kind] ?? upload.kind}: {upload.originalFileName}
                 </a>
               </li>
             ))}
-            {candidate.uploads.length === 0 ? <li>Tidak ada dokumen tervalidasi.</li> : null}
+            {documentUploads.length === 0 ? <li>Tidak ada dokumen tervalidasi.</li> : null}
+          </ul>
+        </div>
+
+        {/* "Guidebook, ketentuan, dan pembayaran": dedicated Pembayaran
+            card - kode unik, total, dan bukti pembayaran via signed URL
+            (same file-viewer route as CV/Dokumen, kind-agnostic). Same
+            visibility as Dokumen (no extra department-scoped rule). */}
+        <div className="candidate-detail__card">
+          <h2>Pembayaran</h2>
+          <dl>
+            <div><dt>Kode unik</dt><dd>{candidate.paymentCode}</dd></div>
+            <div><dt>Total yang harus dibayar</dt><dd>{formatRupiah(candidate.paymentAmount)}</dd></div>
+          </dl>
+          <ul className="candidate-detail__files">
+            {paymentEvidence ? (
+              <li>
+                <a href={fileHref(paymentEvidence.id)} target="_blank" rel="noopener noreferrer">
+                  <FileText aria-hidden="true" size={15} /> Bukti Pembayaran: {paymentEvidence.originalFileName}
+                </a>
+              </li>
+            ) : (
+              <li>Belum ada bukti pembayaran.</li>
+            )}
           </ul>
         </div>
 

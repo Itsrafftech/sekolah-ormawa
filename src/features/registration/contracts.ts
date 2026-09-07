@@ -1,7 +1,11 @@
-// Bumped to 4: IPK (gpa) removed from identity (ADR-040) - a draft saved
-// under schema 3 still has a gpa field the form no longer renders, so it
-// must be discarded rather than restored.
-export const REGISTRATION_DRAFT_SCHEMA_VERSION = 4;
+// Bumped to 5: "Guidebook, ketentuan, dan pembayaran" adds
+// guidebookAcknowledged and a payment code assigned server-side when the
+// registrant reaches the Payment step - a draft saved under schema 4
+// predates both and must be discarded rather than restored (an old draft
+// resuming past Step 0 without ever seeing the new required checkbox, or
+// carrying a stale/nonexistent payment code, would be worse than asking
+// the registrant to redo the (short) early steps).
+export const REGISTRATION_DRAFT_SCHEMA_VERSION = 5;
 
 // Phase A/B - "Jalur Legislatif". Still optional on the payload type
 // (not required) even though the form now always sets it from Step 0
@@ -33,9 +37,11 @@ export type DepartmentsByTrack = {
 // a plain Google Drive URL field (departmentFields.portfolioUrl/
 // budgetPlanUrl below). FOLLOW_EVIDENCE added (UAT feedback -
 // "persyaratan follow dan share"): required PDF for every registrant.
+// PAYMENT_EVIDENCE added ("Guidebook, ketentuan, dan pembayaran"):
+// required payment screenshot/receipt for every registrant.
 export type UploadReference = {
   id: string;
-  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE";
+  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE" | "PAYMENT_EVIDENCE";
   name: string;
   sizeBytes: number;
   mimeType: string;
@@ -50,6 +56,13 @@ export type AdkesmahFocus = "ADVOCACY" | "WELFARE";
 export type RegistrationPayload = {
   periodId: string;
   track?: Track;
+  // "Guidebook, ketentuan, dan pembayaran": Step 0's required checkbox
+  // ("Saya sudah membaca guidebook dan ketentuan pendaftaran"). Optional
+  // on the type (like track above) so a pre-existing caller/draft without
+  // it defaults to false server-side rather than a hard schema error -
+  // false is the correct fail-closed default for a checkbox that must be
+  // explicitly ticked.
+  guidebookAcknowledged?: boolean;
   identity: {
     name: string;
     nim: string;
@@ -76,11 +89,26 @@ export type RegistrationPayload = {
     // (all follow/share screenshots combined) for every registrant,
     // regardless of track/department.
     followEvidence: UploadReference | null;
+    // "Guidebook, ketentuan, dan pembayaran": one required payment
+    // screenshot/receipt for every registrant.
+    paymentEvidence: UploadReference | null;
   };
   essays: {
     organizationExperience: string;
     contribution: string;
     academicBalance: string;
+  };
+  // "Guidebook, ketentuan, dan pembayaran": `code` is assigned server-side
+  // (GET /api/registration/payment-code) the first time the registrant
+  // reaches the Payment step, then persisted through the localStorage
+  // draft so it is never re-issued on revisit/reload - null until that
+  // first fetch completes. `amount` mirrors what the server told the
+  // client the total is (PAYMENT_BASE_AMOUNT + code) purely for display;
+  // submit.ts always recomputes and stores the authoritative amount
+  // server-side from `code` alone, never trusting this field.
+  payment: {
+    code: string | null;
+    amount: number | null;
   };
   // Phase C - "Field Khusus Per Birdep". Populated only for the
   // department each field belongs to (KOMIT's MBTI, Adkesmah's focus
@@ -119,6 +147,11 @@ export type RegistrationFormConfig = {
   // mechanism - portfolioUrlMaxLength is the only cap still relevant
   // (applies to both the portfolio and RAB Google Drive URL fields).
   portfolioUrlMaxLength: number;
+  // "Guidebook, ketentuan, dan pembayaran": base registration fee before
+  // the per-registrant unique code is added (see payment.amount above) -
+  // read from PAYMENT_BASE_AMOUNT so the org can change the fee via
+  // environment configuration without a code change.
+  paymentBaseAmount: number;
   draftTtlSeconds: number;
   departments: Array<{
     id: string;

@@ -52,10 +52,12 @@ export type CandidateListResult = {
 // upload kinds, replaced by a Google Drive URL (see
 // CandidateSupplementalSummary.portfolioUrl/budgetPlanUrl below).
 // FOLLOW_EVIDENCE added (UAT feedback - "persyaratan follow dan share"):
-// required PDF for every registrant.
+// required PDF for every registrant. PAYMENT_EVIDENCE added ("Guidebook,
+// ketentuan, dan pembayaran"): required payment screenshot/receipt for
+// every registrant.
 export type CandidateUploadSummary = {
   id: string;
-  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE";
+  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE" | "PAYMENT_EVIDENCE";
   originalFileName: string;
   sizeBytes: number;
   detectedMimeType: string | null;
@@ -148,6 +150,12 @@ export type CandidateDetail = {
   essayBalance: string;
   status: "SUBMITTED" | "LOCKED" | "WITHDRAWN" | "ARCHIVED";
   submittedAt: string;
+  // "Guidebook, ketentuan, dan pembayaran": always visible to whichever PJ
+  // (P1 or P2) can already see this candidate at all, and to Super Admin -
+  // same visibility as the generic "Dokumen" card (CV/Photo/KTM/Follow
+  // Evidence), not gated to one specific Birdep like "Data Khusus Birdep".
+  paymentCode: string;
+  paymentAmount: number;
   choices: CandidateChoiceSummary[];
   uploads: CandidateUploadSummary[];
   supplemental: CandidateSupplementalSummary | null;

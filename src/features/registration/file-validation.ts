@@ -5,10 +5,10 @@ import type { UploadKind } from "@/generated/prisma/client";
 const MEBIBYTE = 1024 * 1024;
 
 // Largest cap among the upload kinds still accepted (FOLLOW_EVIDENCE's
-// 10MB is the largest of CV/PHOTO/STUDENT_CARD/FOLLOW_EVIDENCE) -
-// exported so the upload API route can size its pre-`formData()`
-// Content-Length check without duplicating the policy numbers or
-// reaching into a retired PORTFOLIO/BUDGET_PLAN cap.
+// 10MB is the largest of CV/PHOTO/STUDENT_CARD/FOLLOW_EVIDENCE/
+// PAYMENT_EVIDENCE) - exported so the upload API route can size its
+// pre-`formData()` Content-Length check without duplicating the policy
+// numbers or reaching into a retired PORTFOLIO/BUDGET_PLAN cap.
 export const MAX_DOCUMENT_UPLOAD_BYTES = 10 * MEBIBYTE;
 
 type UploadPolicy = {
@@ -43,6 +43,15 @@ function policyFor(kind: UploadKind): UploadPolicy {
     // screenshots.
     case "FOLLOW_EVIDENCE":
       return { extensions: [".pdf"], mimeTypes: ["application/pdf"], maxBytes: 10 * MEBIBYTE };
+    // "Guidebook, ketentuan, dan pembayaran": one required payment
+    // screenshot/receipt per candidate - JPG/PNG/PDF, 5MB cap (the spec's
+    // exact "Format: JPG/PNG/PDF - Ukuran maksimal: 5MB").
+    case "PAYMENT_EVIDENCE":
+      return {
+        extensions: [".jpg", ".jpeg", ".png", ".pdf"],
+        mimeTypes: ["image/jpeg", "image/png", "application/pdf"],
+        maxBytes: 5 * MEBIBYTE,
+      };
   }
 }
 
