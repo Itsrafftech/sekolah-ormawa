@@ -36,9 +36,9 @@ function headers(): Headers {
 async function insertCandidate(id: string, name = "Kandidat Seleksi"): Promise<void> {
   await pool.query(
     `INSERT INTO candidates
-      (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgramId", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", track)
+      (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgram", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", track)
      VALUES ($1, $2, $3, $4, $5, $5, 63, 2026, 'Kelas S1', $6, '081200000002', $7, $7, 'Kota Fixture', 'Sintetis', 'Sintetis', 'Sintetis', 'SUBMITTED', now(), now(), 'EXECUTIVE')`,
-    [id, periodId, `REG-${id.slice(-6)}`, name, `NIM-${id.slice(-6)}`, studyProgramId, `${id}@example.test`],
+    [id, periodId, `REG-${id.slice(-6)}`, name, `NIM-${id.slice(-6)}`, "Program Studi Fixture", `${id}@example.test`],
   );
   await pool.query(
     `INSERT INTO candidate_choices (id, "candidateId", "departmentId", rank, motivation, "createdAt", "updatedAt")

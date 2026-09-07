@@ -70,17 +70,16 @@ export async function getRegistrationAvailability(
     };
   }
 
-  const studyPrograms = await prisma.studyProgram.findMany({
-    where: { isActive: true, configStatus: "ACTIVE" },
-    orderBy: { name: "asc" },
-    select: { id: true, code: true, name: true, configStatus: true },
-  });
-
-  if (period.departments.length < 2 || studyPrograms.length === 0) {
+  // UAT feedback (post-Phase D): the study-program active-master-data
+  // gate that used to live here was removed along with StudyProgram's
+  // role in registration - "program studi" is free text now (see
+  // Candidate.studyProgram), so an empty/incomplete StudyProgram table no
+  // longer has any bearing on whether registration can open.
+  if (period.departments.length < 2) {
     return {
       state: "UNAVAILABLE",
       title: "Master data pendaftaran belum siap",
-      detail: "Minimal dua Birdep penerima dan satu program studi aktif diperlukan.",
+      detail: "Minimal dua Birdep penerima diperlukan.",
     };
   }
 
@@ -109,12 +108,6 @@ export async function getRegistrationAvailability(
         requiresAdkesmahFocus: department.code === "ADKESMAH",
         allowsBudgetPlan: department.code === "KOMANGG",
         track: department.track,
-      })),
-      studyPrograms: studyPrograms.map((program) => ({
-        id: program.id,
-        code: program.code,
-        name: program.name,
-        isDraft: program.configStatus === "DRAFT",
       })),
     },
   };

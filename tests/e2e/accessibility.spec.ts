@@ -10,7 +10,6 @@ import {
   E2E_DEPARTMENT_A,
   E2E_PERIOD_ID,
   E2E_PJ_ID,
-  E2E_STUDY_PROGRAM,
 } from "./global-setup";
 
 // Phase 8 P4: WCAG 2.1 AA accessibility pass across every main route, plus
@@ -35,10 +34,10 @@ test.beforeAll(async () => {
   candidateId = randomUUID();
   await pool.query(
     `INSERT INTO candidates
-      (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgramId", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", track)
+      (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgram", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", track)
      VALUES ($1, $2, 'REG-A11Y01', 'Kandidat Aksesibilitas', 'NIM-A11Y01', 'NIM-A11Y01', 63, 2026, 'Kelas AX', $3, '081200000002', 'a11y-candidate@example.test', 'a11y-candidate@example.test', 'Kota Fixture', 'Sintetis', 'Sintetis', 'Sintetis', 'SUBMITTED', now(), now(), 'EXECUTIVE')
      ON CONFLICT (id) DO NOTHING`,
-    [candidateId, E2E_PERIOD_ID, E2E_STUDY_PROGRAM],
+    [candidateId, E2E_PERIOD_ID, "Program Studi Sintetis E2E"],
   );
   await pool.query(
     `INSERT INTO candidate_choices (id, "candidateId", "departmentId", rank, motivation, "createdAt", "updatedAt")

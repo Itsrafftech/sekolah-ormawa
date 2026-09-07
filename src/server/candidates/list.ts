@@ -126,7 +126,7 @@ export async function listCandidatesForDepartment(input: {
       nim: true,
       status: true,
       submittedAt: true,
-      studyProgram: { select: { name: true } },
+      studyProgram: true,
       choices: {
         where: { departmentId },
         select: { rank: true },
@@ -146,7 +146,7 @@ export async function listCandidatesForDepartment(input: {
     registrationNumber: candidate.registrationNumber,
     name: candidate.name,
     nim: candidate.nim,
-    studyProgramName: candidate.studyProgram.name,
+    studyProgramName: candidate.studyProgram,
     rank: candidate.choices[0]?.rank ?? "PRIMARY",
     status: candidate.status,
     submittedAt: candidate.submittedAt.toISOString(),

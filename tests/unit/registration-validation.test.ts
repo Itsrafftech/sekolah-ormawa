@@ -66,7 +66,6 @@ const config: RegistrationFormConfig = {
     department({ id: adkesmah, code: "ADKESMAH", name: "Advokasi dan Kesejahteraan Mahasiswa", shortName: "Adkesmah", requiresAdkesmahFocus: true }),
     department({ id: komanggar, code: "KOMANGG", name: "Komisi Anggaran", shortName: "Komanggar", allowsBudgetPlan: true, track: "LEGISLATIVE" }),
   ],
-  studyPrograms: [{ id: "30000000-0000-4000-8000-000000000001", code: "TEST", name: "Test", isDraft: true }],
 };
 
 const motivation = Array.from({ length: 100 }, (_, index) => `kata${index}`).join(" ");
@@ -81,7 +80,7 @@ function payload(): RegistrationPayload {
       cohortCode: 63,
       entryYear: 2026,
       className: "Kelas Test",
-      studyProgramId: config.studyPrograms[0].id,
+      studyProgram: "Program Studi Test",
       phone: "0812 0000 0000",
       email: "Peserta@Example.test",
       domicile: "Kota Test",
@@ -94,6 +93,7 @@ function payload(): RegistrationPayload {
       cv: { id: "40000000-0000-4000-8000-000000000001", kind: "CV", name: "cv.pdf", sizeBytes: 100, mimeType: "application/pdf" },
       photo: { id: "40000000-0000-4000-8000-000000000002", kind: "PHOTO", name: "foto.png", sizeBytes: 100, mimeType: "image/png" },
       studentCard: null,
+      followEvidence: { id: "40000000-0000-4000-8000-000000000003", kind: "FOLLOW_EVIDENCE", name: "bukti.pdf", sizeBytes: 100, mimeType: "application/pdf" },
     },
     essays: { organizationExperience: "Sintetis", contribution: "Sintetis", academicBalance: "Sintetis" },
     departmentFields: {},
@@ -114,6 +114,14 @@ describe("registration validation", () => {
 
   it("menerima happy path non-Medbrand tanpa portofolio", () => {
     expect(validateRegistrationPayload(payload(), config).success).toBe(true);
+  });
+
+  it("menolak pendaftaran tanpa bukti follow dan share (wajib untuk semua pendaftar)", () => {
+    const input = payload();
+    input.uploads.followEvidence = null;
+    const result = validateRegistrationPayload(input, config);
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errors["uploads.followEvidence"]).toBeTruthy();
   });
 
   it("menolak consent yang belum dicentang dengan pesan Indonesia, bukan pesan Zod mentah", () => {

@@ -1,0 +1,25 @@
+-- UAT feedback - "persyaratan follow dan share": adds FOLLOW_EVIDENCE to
+-- UploadKind for the new required "Bukti Follow dan Share" PDF upload,
+-- applying to every registrant regardless of track/department. Reuses
+-- the existing FileUpload/UploadKind mechanism exactly like CV/PHOTO/
+-- STUDENT_CARD (no new columns on candidates) - the file is one PDF, one
+-- owner, one lifecycle, served through the same already-authorized
+-- viewer route those kinds already use.
+--
+-- Rollback:
+--   Postgres has no "drop a single enum value" statement - the only way
+--   to remove FOLLOW_EVIDENCE from UploadKind is a full type recreation:
+--     ALTER TYPE "UploadKind" RENAME TO "UploadKind_old";
+--     CREATE TYPE "UploadKind" AS ENUM ('CV', 'PHOTO', 'STUDENT_CARD', 'PORTFOLIO', 'BUDGET_PLAN');
+--     ALTER TABLE "file_uploads" ALTER COLUMN "kind" TYPE "UploadKind" USING ("kind"::text::"UploadKind");
+--     DROP TYPE "UploadKind_old";
+--   This FAILS if any file_uploads row still has kind = 'FOLLOW_EVIDENCE'
+--   (the USING cast has nothing valid to convert it to) - such rows (real
+--   submissions or backfilled fixtures) must be deleted or re-kinded
+--   first. Not run automatically here, same reasoning as PORTFOLIO/
+--   BUDGET_PLAN in the Phase D migration: recreating a live enum type is
+--   more risk than leaving one added, unused-when-rolled-back value in
+--   place.
+
+-- AlterEnum
+ALTER TYPE "UploadKind" ADD VALUE 'FOLLOW_EVIDENCE';

@@ -123,9 +123,9 @@ beforeAll(async () => {
   }) {
     await pool.query(
       `INSERT INTO candidates
-        (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgramId", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", track)
+        (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgram", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", track)
        VALUES ($1, $2, $3, $4, $5, $5, 63, 2026, 'Kelas P5', $6, '081200000000', $7, $7, 'Kota Fixture', 'Sintetis', 'Sintetis', 'Sintetis', $8, $9, now(), 'EXECUTIVE')`,
-      [input.id, periodId, `REG-${input.id.slice(-6)}`, input.name, `NIM-${input.id.slice(-6)}`, studyProgramId, `${input.id}@example.test`, input.status, input.submittedAt],
+      [input.id, periodId, `REG-${input.id.slice(-6)}`, input.name, `NIM-${input.id.slice(-6)}`, "Program Studi Dashboard", `${input.id}@example.test`, input.status, input.submittedAt],
     );
     for (const choice of input.choices) {
       await pool.query(

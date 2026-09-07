@@ -42,8 +42,9 @@ const steps = [
   ["01", "Identitas"],
   ["02", "Pilihan Birdep"],
   ["03", "Dokumen"],
-  ["04", "Esai & Portofolio"],
-  ["05", "Review & Submit"],
+  ["04", "Bukti Follow dan Share"],
+  ["05", "Esai & Portofolio"],
+  ["06", "Review & Submit"],
 ] as const;
 
 const TRACK_LABEL: Record<Track, string> = {
@@ -112,7 +113,7 @@ function emptyPayload(config: RegistrationFormConfig): RegistrationPayload {
       cohortCode: config.cohortCode,
       entryYear: config.entryYear,
       className: "",
-      studyProgramId: "",
+      studyProgram: "",
       phone: "",
       email: "",
       domicile: "",
@@ -121,7 +122,7 @@ function emptyPayload(config: RegistrationFormConfig): RegistrationPayload {
       { departmentId: "", motivation: "" },
       { departmentId: "", motivation: "" },
     ],
-    uploads: { cv: null, photo: null, studentCard: null },
+    uploads: { cv: null, photo: null, studentCard: null, followEvidence: null },
     essays: { organizationExperience: "", contribution: "", academicBalance: "" },
     // Phase C - "Field Khusus Per Birdep": empty object, not per-field
     // undefined literals - all keys stay optional/absent until the
@@ -281,7 +282,9 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
       if (payload.identity.name.trim().length < 2) errors["identity.name"] = "Nama lengkap wajib diisi.";
       if (payload.identity.nim.trim().length < 3) errors["identity.nim"] = "NIM wajib diisi.";
       if (!payload.identity.className.trim()) errors["identity.className"] = "Kelas wajib diisi.";
-      if (!payload.identity.studyProgramId) errors["identity.studyProgramId"] = "Pilih program studi.";
+      if (payload.identity.studyProgram.trim().length < 3 || payload.identity.studyProgram.trim().length > 100) {
+        errors["identity.studyProgram"] = "Program studi wajib diisi (3-100 karakter).";
+      }
       if (payload.identity.phone.trim().length < 8) errors["identity.phone"] = "Nomor WhatsApp belum valid.";
       if (!/^\S+@\S+\.\S+$/u.test(payload.identity.email)) errors["identity.email"] = "Email aktif belum valid.";
       if (!payload.identity.domicile.trim()) errors["identity.domicile"] = "Domisili wajib diisi.";
@@ -311,6 +314,13 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
       if (!payload.uploads.photo) errors["uploads.photo"] = "Pas foto wajib diunggah.";
     }
     if (targetStep === 4) {
+      // UAT feedback - "persyaratan follow dan share": required for every
+      // registrant regardless of track/department.
+      if (!payload.uploads.followEvidence) {
+        errors["uploads.followEvidence"] = "Bukti follow dan share (PDF) wajib diunggah.";
+      }
+    }
+    if (targetStep === 5) {
       Object.entries(payload.essays).forEach(([key, value]) => {
         const words = countWords(value);
         if (words < config.essayMinWords || words > config.essayMaxWords) {
@@ -336,7 +346,7 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
         errors["departmentFields.budgetPlanUrl"] = "Link harus berupa URL Google Drive yang valid (https://drive.google.com/...).";
       }
     }
-    if (targetStep === 5) {
+    if (targetStep === 6) {
       if (!payload.consent.truthful) errors["consent.truthful"] = "Pernyataan kebenaran data wajib disetujui.";
       if (!payload.consent.processing) errors["consent.processing"] = "Persetujuan pemrosesan data wajib diberikan.";
     }
@@ -350,7 +360,7 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
 
   function nextStep() {
     if (validateStep(step)) {
-      setStep((current) => Math.min(5, current + 1));
+      setStep((current) => Math.min(6, current + 1));
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }
@@ -427,7 +437,7 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
       <header className="registration-intro">
         <div>
           <p className="eyebrow">Formulir pendaftaran / {config.periodName}</p>
-          <h1 id="registration-title">Lima langkah menuju satu keputusan yang matang.</h1>
+          <h1 id="registration-title">Tujuh langkah menuju satu keputusan yang matang.</h1>
         </div>
         <div className="draft-control" aria-live="polite">
           <Save aria-hidden="true" size={16} />
@@ -488,6 +498,9 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
           <DocumentStep config={config} errors={fieldErrors} payload={payload} mutate={mutate} />
         ) : null}
         {step === 4 ? (
+          <FollowEvidenceStep config={config} errors={fieldErrors} payload={payload} mutate={mutate} />
+        ) : null}
+        {step === 5 ? (
           <EssayPortfolioStep
             config={config}
             errors={fieldErrors}
@@ -497,7 +510,7 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
             mutate={mutate}
           />
         ) : null}
-        {step === 5 ? (
+        {step === 6 ? (
           <ReviewStep
             departmentsByTrack={departmentsByTrack}
             config={config}
@@ -517,7 +530,7 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
           <ArrowLeft aria-hidden="true" size={17} /> Sebelumnya
         </button>
         <span>Langkah {step + 1} dari {steps.length}</span>
-        {step < 5 ? (
+        {step < 6 ? (
           <button className="button button--primary" disabled={step === 0 && !payload.track} onClick={nextStep} type="button">
             Simpan & lanjut <ArrowRight aria-hidden="true" size={17} />
           </button>
@@ -627,11 +640,14 @@ function IdentityStep({ config, errors, payload, mutate }: StepProps) {
         <Field id="identity.className" label="Kelas" error={errors["identity.className"]}>
           <input id={`${fieldId("identity.className")}-control`} value={payload.identity.className} onChange={(e) => update("className", e.target.value)} />
         </Field>
-        <Field id="identity.studyProgramId" label="Program studi" error={errors["identity.studyProgramId"]} hint="Bersumber dari master data periode.">
-          <select id={`${fieldId("identity.studyProgramId")}-control`} value={payload.identity.studyProgramId} onChange={(e) => update("studyProgramId", e.target.value)}>
-            <option value="">Pilih program studi</option>
-            {config.studyPrograms.map((program) => <option key={program.id} value={program.id}>{program.name}{program.isDraft ? " (DRAFT)" : ""}</option>)}
-          </select>
+        <Field id="identity.studyProgram" label="Program Studi" error={errors["identity.studyProgram"]}>
+          <input
+            id={`${fieldId("identity.studyProgram")}-control`}
+            value={payload.identity.studyProgram}
+            onChange={(e) => update("studyProgram", e.target.value)}
+            placeholder="Contoh: Teknologi Informasi, Manajemen, Agribisnis..."
+            maxLength={100}
+          />
         </Field>
         <Field id="identity.phone" label="Nomor WhatsApp" error={errors["identity.phone"]} hint="Format lokal akan dinormalisasi menjadi +62 oleh server.">
           <input id={`${fieldId("identity.phone")}-control`} value={payload.identity.phone} onChange={(e) => update("phone", e.target.value)} inputMode="tel" autoComplete="tel" />
@@ -804,6 +820,58 @@ function UploadField({ config, id, label, accept, detail, error, kind, value, on
   );
 }
 
+// UAT feedback - "persyaratan follow dan share". Applies to every
+// registrant regardless of track/department, so unlike the Phase C/D
+// department-triggered fields this step is never conditionally hidden -
+// it always renders between Dokumen (Step 3) and Esai & Portofolio
+// (Step 5).
+function FollowEvidenceStep({ config, errors, payload, mutate }: StepProps) {
+  const setUpload = (upload: UploadReference | null) =>
+    mutate((current) => ({ ...current, uploads: { ...current.uploads, followEvidence: upload } }));
+  return (
+    <StepFrame number="04" eyebrow="Wajib untuk semua pendaftar" title="Bukti Follow dan Share">
+      <div className="follow-evidence-instructions">
+        <p>Sebelum mendaftar, pastikan kamu sudah:</p>
+        <ol>
+          <li>Follow @ormawaeksekutifpku dan seluruh akun Instagram Birdep Eksekutif PKU (11 akun — cari sendiri di Instagram)</li>
+          <li>Follow @ormawalegislatifpku</li>
+          <li>Share jarkoman Sekolah Ormawa ke 3 grup WhatsApp</li>
+          <li>Share poster Sekolah Ormawa ke story Instagram pribadi kamu</li>
+        </ol>
+        <p>Kumpulkan semua screenshot bukti menjadi 1 file PDF dengan urutan:</p>
+        <ol>
+          <li>Screenshot follow @ormawaeksekutifpku</li>
+          <li>Screenshot follow 11 akun Birdep Eksekutif (boleh beberapa screenshot)</li>
+          <li>Screenshot follow @ormawalegislatifpku</li>
+          <li>Screenshot share jarkoman ke 3 grup WhatsApp</li>
+          <li>Screenshot story Instagram poster</li>
+        </ol>
+        <p>
+          Format nama file PDF wajib:
+          <br />
+          <code>[Pilihan Birdep/Kombad 1]_[Nama Lengkap]_bukti follow dan share.pdf</code>
+        </p>
+        <p className="follow-evidence-instructions__example">
+          Contoh: <code>PSDM_Muhammad Rafi Al Arifi_bukti follow dan share.pdf</code>
+        </p>
+      </div>
+      <div className="upload-grid">
+        <UploadField
+          config={config}
+          id="uploads.followEvidence"
+          label="Bukti Follow dan Share (PDF)"
+          accept=".pdf,application/pdf"
+          detail="Wajib · PDF · maksimum 10 MB"
+          error={errors["uploads.followEvidence"]}
+          kind="FOLLOW_EVIDENCE"
+          value={payload.uploads.followEvidence}
+          onChange={setUpload}
+        />
+      </div>
+    </StepFrame>
+  );
+}
+
 function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allowsBudgetPlan, mutate }: StepProps & {
   requiresPortfolio: boolean;
   allowsBudgetPlan: boolean;
@@ -817,7 +885,7 @@ function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allows
     ["academicBalance", "Cara menyeimbangkan akademik dan organisasi"],
   ] as const;
   return (
-    <StepFrame number="04" eyebrow="Cerita dan bukti karya" title="Esai & portofolio bersyarat">
+    <StepFrame number="05" eyebrow="Cerita dan bukti karya" title="Esai & portofolio bersyarat">
       <div className="essay-stack">
         {essayFields.map(([key, label]) => <Field key={key} id={`essays.${key}`} label={label} error={errors[`essays.${key}`]} hint={`${config.essayMinWords}-${config.essayMaxWords} kata · ${countWords(payload.essays[key])} kata`}><textarea id={`${fieldId(`essays.${key}`)}-control`} value={payload.essays[key]} onChange={(event) => updateEssay(key, event.target.value)} rows={7} /></Field>)}
       </div>
@@ -890,13 +958,12 @@ function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortf
   const department = (id: string) =>
     allDepartments(departmentsByTrack).find((item) => item.id === id)?.name ??
     config.departments.find((item) => item.id === id)?.name ?? "-";
-  const program = config.studyPrograms.find((item) => item.id === payload.identity.studyProgramId)?.name ?? "-";
   const setConsent = (key: "truthful" | "processing", value: boolean) => mutate((current) => ({ ...current, consent: { ...current.consent, [key]: value } }));
   return (
-    <StepFrame number="05" eyebrow="Periksa sebelum commit" title="Review & persetujuan">
+    <StepFrame number="06" eyebrow="Periksa sebelum commit" title="Review & persetujuan">
       <div className="review-sheet">
         <ReviewSection title="Jalur Pendaftaran"><dl><ReviewItem label="Jalur" value={payload.track ? TRACK_LABEL[payload.track] : "-"} /></dl></ReviewSection>
-        <ReviewSection title="Identitas"><dl><ReviewItem label="Nama" value={payload.identity.name} /><ReviewItem label="NIM" value={payload.identity.nim} /><ReviewItem label="Angkatan / tahun masuk" value={`${payload.identity.cohortCode} / ${payload.identity.entryYear}`} /><ReviewItem label="Prodi" value={program} /><ReviewItem label="Kelas" value={payload.identity.className} /><ReviewItem label="WhatsApp" value={payload.identity.phone} /><ReviewItem label="Email" value={payload.identity.email} /><ReviewItem label="Domisili" value={payload.identity.domicile} /></dl></ReviewSection>
+        <ReviewSection title="Identitas"><dl><ReviewItem label="Nama" value={payload.identity.name} /><ReviewItem label="NIM" value={payload.identity.nim} /><ReviewItem label="Angkatan / tahun masuk" value={`${payload.identity.cohortCode} / ${payload.identity.entryYear}`} /><ReviewItem label="Prodi" value={payload.identity.studyProgram} /><ReviewItem label="Kelas" value={payload.identity.className} /><ReviewItem label="WhatsApp" value={payload.identity.phone} /><ReviewItem label="Email" value={payload.identity.email} /><ReviewItem label="Domisili" value={payload.identity.domicile} /></dl></ReviewSection>
         <ReviewSection title="Pilihan Birdep">{payload.choices.map((choice, index) => <article key={index}><strong>Pilihan {index + 1} · {department(choice.departmentId)}</strong><p>{choice.motivation}</p></article>)}</ReviewSection>
         {requiresMbti || requiresAdkesmahFocus || requiresPortfolio || allowsBudgetPlan ? (
           <ReviewSection title="Data Khusus Birdep">
@@ -913,7 +980,7 @@ function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortf
             </dl>
           </ReviewSection>
         ) : null}
-        <ReviewSection title="Dokumen"><ul><li>CV · {payload.uploads.cv ? `${payload.uploads.cv.name} (${formatBytes(payload.uploads.cv.sizeBytes)})` : "Belum ada"}</li><li>Pas foto · {payload.uploads.photo ? `${payload.uploads.photo.name} (${formatBytes(payload.uploads.photo.sizeBytes)})` : "Belum ada"}</li><li>KTM · {payload.uploads.studentCard ? `${payload.uploads.studentCard.name} (${formatBytes(payload.uploads.studentCard.sizeBytes)})` : "Tidak dilampirkan"}</li></ul></ReviewSection>
+        <ReviewSection title="Dokumen"><ul><li>CV · {payload.uploads.cv ? `${payload.uploads.cv.name} (${formatBytes(payload.uploads.cv.sizeBytes)})` : "Belum ada"}</li><li>Pas foto · {payload.uploads.photo ? `${payload.uploads.photo.name} (${formatBytes(payload.uploads.photo.sizeBytes)})` : "Belum ada"}</li><li>KTM · {payload.uploads.studentCard ? `${payload.uploads.studentCard.name} (${formatBytes(payload.uploads.studentCard.sizeBytes)})` : "Tidak dilampirkan"}</li><li>Bukti Follow dan Share · {payload.uploads.followEvidence ? `${payload.uploads.followEvidence.name} (${formatBytes(payload.uploads.followEvidence.sizeBytes)})` : "Belum ada"}</li></ul></ReviewSection>
         <ReviewSection title="Esai"><article><strong>Pengalaman organisasi</strong><p>{payload.essays.organizationExperience}</p></article><article><strong>Kontribusi untuk Pilihan 1</strong><p>{payload.essays.contribution}</p></article><article><strong>Keseimbangan akademik</strong><p>{payload.essays.academicBalance}</p></article></ReviewSection>
       </div>
       <div className="consent-panel">

@@ -2319,6 +2319,20 @@ summary:focus-visible {
   background: rgba(86,106,92,.08);
 }
 .privacy-note p { margin: 5px 0 0; color: var(--ink-soft); font-size: 12px; line-height: 1.6; }
+
+.follow-evidence-instructions {
+  margin-bottom: 30px;
+  padding: 22px 24px;
+  border-left: 4px solid var(--burgundy);
+  background: rgba(122,29,45,.06);
+}
+.follow-evidence-instructions p { margin: 16px 0 8px; font-size: 13px; line-height: 1.6; }
+.follow-evidence-instructions p:first-child { margin-top: 0; }
+.follow-evidence-instructions ol { margin: 0 0 8px; padding-left: 20px; font-size: 13px; line-height: 1.7; color: var(--ink-soft); }
+.follow-evidence-instructions li { margin-bottom: 4px; }
+.follow-evidence-instructions code { padding: 2px 6px; border: 1px solid var(--line-strong); background: rgba(255,255,255,.5); font-size: 12px; word-break: break-word; }
+.follow-evidence-instructions__example { font-size: 12px; color: var(--ink-soft); }
+
 .upload-grid { display: grid; gap: 18px; }
 .upload-field {
   display: grid;

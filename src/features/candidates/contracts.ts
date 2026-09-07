@@ -51,9 +51,11 @@ export type CandidateListResult = {
 // Phase D (ADR-045): PORTFOLIO/BUDGET_PLAN removed - both retired as
 // upload kinds, replaced by a Google Drive URL (see
 // CandidateSupplementalSummary.portfolioUrl/budgetPlanUrl below).
+// FOLLOW_EVIDENCE added (UAT feedback - "persyaratan follow dan share"):
+// required PDF for every registrant.
 export type CandidateUploadSummary = {
   id: string;
-  kind: "CV" | "PHOTO" | "STUDENT_CARD";
+  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE";
   originalFileName: string;
   sizeBytes: number;
   detectedMimeType: string | null;

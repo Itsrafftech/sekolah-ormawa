@@ -31,11 +31,11 @@ export type DepartmentsByTrack = {
 // Phase D - "Portofolio via URL Google Drive" (ADR-045): PORTFOLIO and
 // BUDGET_PLAN removed from this union - both moved from in-app upload to
 // a plain Google Drive URL field (departmentFields.portfolioUrl/
-// budgetPlanUrl below). CV/PHOTO/STUDENT_CARD are the only kinds a
-// registration payload can still reference.
+// budgetPlanUrl below). FOLLOW_EVIDENCE added (UAT feedback -
+// "persyaratan follow dan share"): required PDF for every registrant.
 export type UploadReference = {
   id: string;
-  kind: "CV" | "PHOTO" | "STUDENT_CARD";
+  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE";
   name: string;
   sizeBytes: number;
   mimeType: string;
@@ -56,7 +56,10 @@ export type RegistrationPayload = {
     cohortCode: number;
     entryYear: number;
     className: string;
-    studyProgramId: string;
+    // UAT feedback (post-Phase D): free text instead of a foreign key to
+    // master data - the fixture study-program list was incomplete and
+    // blocked candidates from registering under their actual program.
+    studyProgram: string;
     phone: string;
     email: string;
     domicile: string;
@@ -69,6 +72,10 @@ export type RegistrationPayload = {
     cv: UploadReference | null;
     photo: UploadReference | null;
     studentCard: UploadReference | null;
+    // UAT feedback - "persyaratan follow dan share": one required PDF
+    // (all follow/share screenshots combined) for every registrant,
+    // regardless of track/department.
+    followEvidence: UploadReference | null;
   };
   essays: {
     organizationExperience: string;
@@ -128,12 +135,6 @@ export type RegistrationFormConfig = {
     requiresAdkesmahFocus: boolean;
     allowsBudgetPlan: boolean;
     track: Track;
-  }>;
-  studyPrograms: Array<{
-    id: string;
-    code: string;
-    name: string;
-    isDraft: boolean;
   }>;
 };
 

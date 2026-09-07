@@ -49,4 +49,17 @@ describe("private upload validation", () => {
       validateUploadFile({ kind: "BUDGET_PLAN", fileName: "rab.pdf", declaredMimeType: "application/pdf", bytes: pdf }),
     ).toThrow(UploadValidationError);
   });
+
+  // UAT feedback - "persyaratan follow dan share": PDF only, 10MB cap.
+  it("menerima FOLLOW_EVIDENCE PDF valid, menolak non-PDF dan file di atas 10MB", () => {
+    expect(validateUploadFile({ kind: "FOLLOW_EVIDENCE", fileName: "bukti.pdf", declaredMimeType: "application/pdf", bytes: pdf }).detectedMimeType).toBe("application/pdf");
+    expect(() =>
+      validateUploadFile({ kind: "FOLLOW_EVIDENCE", fileName: "bukti.png", declaredMimeType: "image/png", bytes: png }),
+    ).toThrow("Ekstensi");
+    const oversized = new Uint8Array(10 * 1024 * 1024 + 1);
+    oversized.set(pdf);
+    expect(() =>
+      validateUploadFile({ kind: "FOLLOW_EVIDENCE", fileName: "bukti.pdf", declaredMimeType: "application/pdf", bytes: oversized }),
+    ).toThrow("Ukuran");
+  });
 });

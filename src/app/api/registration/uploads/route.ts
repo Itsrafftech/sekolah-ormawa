@@ -20,7 +20,9 @@ const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
 // via URL Google Drive", ADR-045): Medbrand/Badmedbrnd's portfolio and
 // Komanggar's RAB are no longer uploads - a request for either kind is
 // now rejected here as an invalid payload, same as any unrecognized kind.
-const uploadKinds = new Set<UploadKind>(["CV", "PHOTO", "STUDENT_CARD"]);
+// FOLLOW_EVIDENCE added (UAT feedback - "persyaratan follow dan share"):
+// required PDF for every registrant.
+const uploadKinds = new Set<UploadKind>(["CV", "PHOTO", "STUDENT_CARD", "FOLLOW_EVIDENCE"]);
 
 export async function POST(request: NextRequest) {
   try {
@@ -57,9 +59,9 @@ export async function POST(request: NextRequest) {
   const declaredLength = Number(request.headers.get("content-length") ?? "");
   // `kind` isn't known yet at this point (it's still inside the
   // not-yet-parsed multipart body) - use the largest cap among the still-
-  // accepted kinds (CV/PHOTO/STUDENT_CARD) so none is falsely rejected
-  // here before file-validation ever gets to apply the kind-specific
-  // limit for real.
+  // accepted kinds (CV/PHOTO/STUDENT_CARD/FOLLOW_EVIDENCE) so none is
+  // falsely rejected here before file-validation ever gets to apply the
+  // kind-specific limit for real.
   const maxAllowedBytes = MAX_DOCUMENT_UPLOAD_BYTES + MULTIPART_OVERHEAD_BYTES;
   if (Number.isFinite(declaredLength) && declaredLength > maxAllowedBytes) {
     return NextResponse.json({ error: "Ukuran file melebihi batas yang diizinkan." }, { status: 413 });

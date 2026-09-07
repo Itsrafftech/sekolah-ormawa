@@ -265,26 +265,11 @@ export async function submitRegistration(input: {
       }
       const track = choiceTracks[0];
 
-      const studyProgram = await transaction.studyProgram.findFirst({
-        where: {
-          id: payload.identity.studyProgramId,
-          isActive: true,
-          configStatus: "ACTIVE",
-        },
-      });
-      if (!studyProgram) {
-        throw new RegistrationSubmissionError(
-          "Program studi tidak tersedia.",
-          422,
-          "INVALID_STUDY_PROGRAM",
-          { "identity.studyProgramId": "Program studi tidak aktif." },
-        );
-      }
-
       const allUploadIds = [
         payload.uploads.cv?.id,
         payload.uploads.photo?.id,
         payload.uploads.studentCard?.id,
+        payload.uploads.followEvidence?.id,
       ].filter((value): value is string => Boolean(value));
       if (new Set(allUploadIds).size !== allUploadIds.length) {
         throw new RegistrationSubmissionError(
@@ -317,7 +302,8 @@ export async function submitRegistration(input: {
       if (
         !payload.uploads.cv || kindById.get(payload.uploads.cv.id) !== "CV" ||
         !payload.uploads.photo || kindById.get(payload.uploads.photo.id) !== "PHOTO" ||
-        (payload.uploads.studentCard && kindById.get(payload.uploads.studentCard.id) !== "STUDENT_CARD")
+        (payload.uploads.studentCard && kindById.get(payload.uploads.studentCard.id) !== "STUDENT_CARD") ||
+        !payload.uploads.followEvidence || kindById.get(payload.uploads.followEvidence.id) !== "FOLLOW_EVIDENCE"
       ) {
         throw new RegistrationSubmissionError(
           "Jenis upload tidak sesuai field dokumen.",
@@ -379,7 +365,7 @@ export async function submitRegistration(input: {
           cohortCode: period.cohortCode,
           entryYear: period.entryYear,
           className: payload.identity.className.trim(),
-          studyProgramId: studyProgram.id,
+          studyProgram: payload.identity.studyProgram.trim(),
           phone: normalizePhone(payload.identity.phone),
           email: payload.identity.email.trim(),
           normalizedEmail: normalizeEmail(payload.identity.email),

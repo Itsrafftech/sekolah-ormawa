@@ -15,7 +15,7 @@ async function fillIdentity(page: Page, suffix: string) {
   await page.getByLabel("Nama lengkap").fill(`Peserta Sintetis ${suffix}`);
   await page.getByLabel("NIM").fill(`NIM-${suffix}`);
   await page.getByLabel("Kelas").fill("Kelas Sintetis");
-  await page.getByLabel("Program studi").selectOption({ label: "Program Studi Sintetis E2E" });
+  await page.getByLabel("Program Studi").fill("Program Studi Sintetis E2E");
   await page.getByLabel("Nomor WhatsApp").fill("081200000000");
   await page.getByLabel("Email aktif").fill(`${suffix}@example.test`);
   await page.getByLabel("Domisili").fill("Kota Sintetis");
@@ -93,6 +93,12 @@ test("happy path non-Medbrand menyimpan kandidat dan menampilkan bukti", async (
   await expect(page.getByText("Upload privat tervalidasi.").nth(1)).toBeVisible();
   await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
 
+  // UAT feedback - "persyaratan follow dan share": step baru wajib untuk
+  // semua pendaftar, terletak di antara Dokumen dan Esai & Portofolio.
+  await page.getByLabel("Pilih file Bukti Follow dan Share (PDF)").setInputFiles({ name: "bukti-sintetis.pdf", mimeType: "application/pdf", buffer: pdf });
+  await expect(page.getByText("Upload privat tervalidasi.")).toBeVisible();
+  await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
+
   await page.getByLabel("Pengalaman organisasi sebelumnya").fill("Pengalaman sintetis untuk pengujian.");
   await page.getByLabel("Kontribusi untuk Pilihan 1").fill("Kontribusi sintetis untuk pengujian.");
   await page.getByLabel("Cara menyeimbangkan akademik dan organisasi").fill("Rencana sintetis untuk pengujian.");
@@ -117,6 +123,13 @@ test("Medbrand Pilihan 2 memunculkan portofolio dan menerima URL HTTPS", async (
   await page.getByLabel("Pilih file Pas foto").setInputFiles({ name: "foto.png", mimeType: "image/png", buffer: png });
   await expect(page.getByText("Upload privat tervalidasi.")).toHaveCount(2);
   await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
+
+  // UAT feedback - "persyaratan follow dan share": step baru wajib untuk
+  // semua pendaftar, terletak di antara Dokumen dan Esai & Portofolio.
+  await page.getByLabel("Pilih file Bukti Follow dan Share (PDF)").setInputFiles({ name: "bukti-medbrand.pdf", mimeType: "application/pdf", buffer: pdf });
+  await expect(page.getByText("Upload privat tervalidasi.")).toBeVisible();
+  await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
+
   await page.getByLabel("Pengalaman organisasi sebelumnya").fill("Sintetis");
   await page.getByLabel("Kontribusi untuk Pilihan 1").fill("Sintetis");
   await page.getByLabel("Cara menyeimbangkan akademik dan organisasi").fill("Sintetis");

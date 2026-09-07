@@ -110,6 +110,9 @@ async function buildPayload(suffix: string): Promise<{ payload: RegistrationPayl
   const photo = await createPrivateUpload({
     periodId, ownerToken, kind: "PHOTO", fileName: `photo-${suffix}.png`, declaredMimeType: "image/png", bytes: png, storage,
   });
+  const followEvidence = await createPrivateUpload({
+    periodId, ownerToken, kind: "FOLLOW_EVIDENCE", fileName: `bukti-${suffix}.pdf`, declaredMimeType: "application/pdf", bytes: pdf, storage,
+  });
   return {
     ownerToken,
     payload: {
@@ -120,7 +123,7 @@ async function buildPayload(suffix: string): Promise<{ payload: RegistrationPayl
         cohortCode: 63,
         entryYear: 2026,
         className: "Kelas Beban",
-        studyProgramId,
+        studyProgram: "Program Studi Load Test",
         phone: "081200000099",
         email: `load-${suffix}@example.test`,
         domicile: "Kota Beban",
@@ -133,6 +136,7 @@ async function buildPayload(suffix: string): Promise<{ payload: RegistrationPayl
         cv: { id: cv.id, kind: "CV", name: cv.originalFileName, sizeBytes: cv.sizeBytes, mimeType: cv.detectedMimeType ?? "application/pdf" },
         photo: { id: photo.id, kind: "PHOTO", name: photo.originalFileName, sizeBytes: photo.sizeBytes, mimeType: photo.detectedMimeType ?? "image/png" },
         studentCard: null,
+        followEvidence: { id: followEvidence.id, kind: "FOLLOW_EVIDENCE", name: followEvidence.originalFileName, sizeBytes: followEvidence.sizeBytes, mimeType: followEvidence.detectedMimeType ?? "application/pdf" },
       },
       essays: { organizationExperience: "Sintetis", contribution: "Sintetis", academicBalance: "Sintetis" },
       departmentFields: {},

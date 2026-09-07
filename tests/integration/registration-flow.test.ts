@@ -135,10 +135,10 @@ afterAll(async () => {
 
 async function upload(
   ownerToken: string,
-  kind: "CV" | "PHOTO" | "STUDENT_CARD",
+  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE",
   suffix: string,
 ): Promise<UploadReference> {
-  const isPdf = kind === "CV";
+  const isPdf = kind === "CV" || kind === "FOLLOW_EVIDENCE";
   const result = await createPrivateUpload({
     periodId,
     ownerToken,
@@ -176,6 +176,7 @@ async function validPayload(input: {
 }): Promise<RegistrationPayload> {
   const cv = await upload(input.ownerToken, "CV", `cv-${input.suffix}`);
   const photo = await upload(input.ownerToken, "PHOTO", `photo-${input.suffix}`);
+  const followEvidence = await upload(input.ownerToken, "FOLLOW_EVIDENCE", `bukti-${input.suffix}`);
   return {
     periodId,
     identity: {
@@ -184,7 +185,7 @@ async function validPayload(input: {
       cohortCode: 63,
       entryYear: 2026,
       className: "Kelas Test",
-      studyProgramId,
+      studyProgram: "Program Studi Sintetis",
       phone: "081200000000",
       email: `${input.suffix}@example.test`,
       domicile: "Kota Sintetis",
@@ -193,7 +194,7 @@ async function validPayload(input: {
       { departmentId: input.primary ?? departmentA, motivation },
       { departmentId: input.secondary ?? departmentB, motivation },
     ],
-    uploads: { cv, photo, studentCard: null },
+    uploads: { cv, photo, studentCard: null, followEvidence },
     essays: { organizationExperience: "Sintetis", contribution: "Sintetis", academicBalance: "Sintetis" },
     departmentFields: input.departmentFields ?? {},
     consent: { truthful: true, processing: true, version: "DRAFT-CONSENT-TEST" },
@@ -210,6 +211,29 @@ describe.sequential("Phase 3 registration transaction", () => {
     const counts = await pool.query(`SELECT (SELECT count(*) FROM candidates) AS candidates, (SELECT count(*) FROM email_outbox) AS emails`);
     expect(Number(counts.rows[0].candidates)).toBe(1);
     expect(Number(counts.rows[0].emails)).toBe(1);
+  });
+
+  it("menolak pendaftaran tanpa bukti follow dan share (wajib untuk semua pendaftar, eksekutif maupun legislatif)", async () => {
+    const suffix = `follow-missing-${randomUUID().slice(0, 8)}`;
+    const ownerToken = `owner-${suffix}`;
+    const payload = await validPayload({ ownerToken, suffix });
+    payload.uploads.followEvidence = null;
+    await expect(
+      submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED", fieldErrors: { "uploads.followEvidence": expect.any(String) } });
+  });
+
+  it("menyimpan FileUpload kind FOLLOW_EVIDENCE terhubung ke kandidat setelah submit berhasil", async () => {
+    const suffix = `follow-ok-${randomUUID().slice(0, 8)}`;
+    const ownerToken = `owner-${suffix}`;
+    const payload = await validPayload({ ownerToken, suffix });
+    const result = await submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` });
+    const row = await pool.query(
+      `SELECT f.kind, f.status FROM file_uploads f JOIN candidates c ON c.id = f."candidateId"
+       WHERE c."registrationNumber" = $1 AND f.kind = 'FOLLOW_EVIDENCE'`,
+      [result.registrationNumber],
+    );
+    expect(row.rows[0]).toMatchObject({ kind: "FOLLOW_EVIDENCE", status: "FINALIZED" });
   });
 
   it.each([

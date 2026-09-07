@@ -15,6 +15,10 @@
 .env
 .env.local
 .env.*.local
+.env.production
+.env.production.local
+.env.staging
+.env.staging.local
 !.env.example
 /secrets/
 /.dev-secrets/

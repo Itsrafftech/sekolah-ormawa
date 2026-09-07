@@ -48,7 +48,7 @@ export function isValidGoogleDriveUrl(value: string, maxLength: number): boolean
 
 const uploadReferenceSchema = z.object({
   id: z.uuid(),
-  kind: z.enum(["CV", "PHOTO", "STUDENT_CARD"]),
+  kind: z.enum(["CV", "PHOTO", "STUDENT_CARD", "FOLLOW_EVIDENCE"]),
   name: z.string().min(1).max(255),
   sizeBytes: z.number().int().positive(),
   mimeType: z.string().min(1).max(127),
@@ -76,7 +76,10 @@ const payloadSchema = z.object({
     cohortCode: z.number().int().positive(),
     entryYear: z.number().int().min(1900).max(2200),
     className: z.string().trim().min(1).max(80),
-    studyProgramId: z.uuid(),
+    // UAT feedback (post-Phase D): free text instead of a foreign key to
+    // master data - the fixture study-program list was incomplete and
+    // blocked candidates from registering under their actual program.
+    studyProgram: z.string().trim().min(3).max(100),
     phone: z.string().trim().min(8).max(32),
     email: z.email().max(254),
     domicile: z.string().trim().min(2).max(160),
@@ -89,6 +92,7 @@ const payloadSchema = z.object({
     cv: uploadReferenceSchema.nullable(),
     photo: uploadReferenceSchema.nullable(),
     studentCard: uploadReferenceSchema.nullable(),
+    followEvidence: uploadReferenceSchema.nullable(),
   }),
   essays: z.object({
     organizationExperience: z.string().trim(),
@@ -191,6 +195,11 @@ export function validateRegistrationPayload(
 
   if (!data.uploads.cv) errors["uploads.cv"] = "CV PDF wajib diunggah.";
   if (!data.uploads.photo) errors["uploads.photo"] = "Pas foto wajib diunggah.";
+  // UAT feedback - "persyaratan follow dan share": required for every
+  // registrant regardless of track/department.
+  if (!data.uploads.followEvidence) {
+    errors["uploads.followEvidence"] = "Bukti follow dan share (PDF) wajib diunggah.";
+  }
 
   const selectedCodes = data.choices.map(
     (choice) => config.departments.find((item) => item.id === choice.departmentId)?.code,

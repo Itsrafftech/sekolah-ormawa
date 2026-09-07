@@ -22,5 +22,54 @@ services:
       timeout: 5s
       retries: 12
 
+  # Pre-deploy verification (2026-09-07): local MinIO so MinioPrivateStorage
+  # (ADR-035) can be exercised against a real S3-compatible server before
+  # Contabo deploy, instead of only DevelopmentPrivateStorage (local disk).
+  # Pinned to a specific release (not `latest`) for reproducibility - this
+  # is dev-only infra, production uses the self-hosted MinIO on Contabo
+  # directly, not this container.
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: sekolah-ormawa-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    ports:
+      # 9000 (S3 API) / 9001 (web console) - verified free of the Windows
+      # WinNAT dynamic port exclusion range documented in RUNBOOK.md for
+      # why Postgres uses 15432 instead of its standard port.
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - sekolah_ormawa_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # One-shot: creates the bucket the app's own MinioPrivateStorage adapter
+  # reads/writes/deletes against (STORAGE_BUCKET_CANDIDATES), then exits.
+  # `mc mb --ignore-existing` is idempotent, safe to re-run on every
+  # `docker compose up`.
+  minio-init:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: sekolah-ormawa-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing local/$${STORAGE_BUCKET_CANDIDATES}
+      "
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      STORAGE_BUCKET_CANDIDATES: ${STORAGE_BUCKET_CANDIDATES}
+
 volumes:
   sekolah_ormawa_postgres_data:
+  sekolah_ormawa_minio_data:

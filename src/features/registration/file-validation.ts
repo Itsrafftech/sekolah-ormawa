@@ -4,11 +4,12 @@ import type { UploadKind } from "@/generated/prisma/client";
 
 const MEBIBYTE = 1024 * 1024;
 
-// Largest cap among the upload kinds still accepted (CV: 2MB is the
-// largest of CV/PHOTO/STUDENT_CARD) - exported so the upload API route
-// can size its pre-`formData()` Content-Length check without duplicating
-// the policy numbers or reaching into a retired PORTFOLIO/BUDGET_PLAN cap.
-export const MAX_DOCUMENT_UPLOAD_BYTES = 2 * MEBIBYTE;
+// Largest cap among the upload kinds still accepted (FOLLOW_EVIDENCE's
+// 10MB is the largest of CV/PHOTO/STUDENT_CARD/FOLLOW_EVIDENCE) -
+// exported so the upload API route can size its pre-`formData()`
+// Content-Length check without duplicating the policy numbers or
+// reaching into a retired PORTFOLIO/BUDGET_PLAN cap.
+export const MAX_DOCUMENT_UPLOAD_BYTES = 10 * MEBIBYTE;
 
 type UploadPolicy = {
   extensions: string[];
@@ -36,6 +37,12 @@ function policyFor(kind: UploadKind): UploadPolicy {
     case "PORTFOLIO":
     case "BUDGET_PLAN":
       return { extensions: [], mimeTypes: [], maxBytes: 0 };
+    // UAT feedback - "persyaratan follow dan share": one required PDF
+    // (all screenshots combined) per candidate, 10MB cap - same shape as
+    // CV's policy, just a larger size allowance since it can hold many
+    // screenshots.
+    case "FOLLOW_EVIDENCE":
+      return { extensions: [".pdf"], mimeTypes: ["application/pdf"], maxBytes: 10 * MEBIBYTE };
   }
 }
 

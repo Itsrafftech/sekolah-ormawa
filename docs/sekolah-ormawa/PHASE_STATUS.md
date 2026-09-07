@@ -1394,3 +1394,103 @@ Tidak ada yang memblokir. Satu hal untuk Anda ketahui (bukan keputusan yang perl
 ## Batas fase
 
 Seluruh 5 tugas Phase D sudah diimplementasikan, diverifikasi langsung di browser (bukan hanya test otomatis), dan lolos quality gate penuh (typecheck, lint, unit, integration, build). **Tidak ada migration yang dijalankan terhadap database production** (belum ada database production). Pekerjaan berhenti setelah laporan ini dan menunggu instruksi Anda untuk langkah selanjutnya.
+
+---
+
+# Hasil UAT - Bukti Follow dan Share
+
+## Status
+
+PASS
+
+## Ringkasan hasil
+
+Step baru wajib di form pendaftaran ("Bukti Follow dan Share") untuk SEMUA pendaftar (eksekutif dan legislatif) - satu file PDF berisi seluruh bukti screenshot follow Instagram dan share, ditempatkan setelah Step Dokumen (CV/foto) dan sebelum Step Esai & Portofolio. Diimplementasikan dengan ULANG mekanisme `FileUpload`/`UploadKind` yang sudah ada (`UploadKind.FOLLOW_EVIDENCE` baru) - lihat ADR-046 untuk alasan lengkap kenapa ini dipilih dibanding kolom baru di `Candidate` yang jadi opsi di spek Anda. Konsekuensinya: viewer dashboard PJ yang sudah ada (`GET /api/admin/candidates/[id]/files/[fileId]`, kind-agnostic) langsung bisa menyajikan file ini tanpa perubahan kode, dan visibilitas "hanya PJ Birdep terkait + Super Admin" otomatis terpenuhi lewat kartu "Dokumen" generik yang sudah ada (bergabung dengan CV/Pas foto/KTM), bukan primitive baru.
+
+Instruksi lengkap (follow @ormawaeksekutifpku + 11 akun Birdep Eksekutif, follow @ormawalegislatifpku, share jarkoman ke 3 grup WhatsApp, share poster ke story Instagram, urutan screenshot, dan format nama file PDF wajib) ditampilkan persis sesuai teks yang Anda berikan, di atas field upload. Field: PDF only, wajib, maksimum 10MB, tervalidasi MIME + magic byte `%PDF` di server (pola sama seperti CV, hanya batas ukuran yang lebih besar). Form-wizard dirombak dari 6 jadi 7 step (nomor step dan progress bar disesuaikan penuh); saya juga memperbaiki teks header "Lima langkah..." yang sudah salah sejak Phase B (belum pernah dikoreksi saat Step Jalur ditambahkan) menjadi "Tujuh langkah..." - termasuk dalam scope "Sesuaikan nomor step dan progress bar" yang Anda minta, bukan perubahan di luar permintaan.
+
+8 kandidat fixture yang sudah ada (dari sebelum fitur ini) di-backfill dengan `FileUpload` `FOLLOW_EVIDENCE` placeholder sintetis yang jelas ditandai (`PLACEHOLDER_bukti-follow-dan-share.pdf`) beserta byte PDF asli yang ditulis ke private storage, supaya link viewer PJ tidak 404 untuk kandidat lama.
+
+## Perubahan utama
+
+| File/modul | Tujuan perubahan |
+|---|---|
+| `prisma/schema.prisma` | `UploadKind` +`FOLLOW_EVIDENCE`, didokumentasikan sebagai reuse generik (bukan kolom `Candidate` baru) |
+| `prisma/migrations/20260907120000_add_follow_evidence_upload_kind/` | Migration baru: tambah nilai enum; rollback (rebuild tipe penuh) didokumentasikan di komentar |
+| `docs/sekolah-ormawa/DECISIONS.md` | ADR-046 (keputusan arsitektur FileUpload/UploadKind vs kolom baru, dan visibilitas dashboard) |
+| `src/features/registration/file-validation.ts` | `policyFor()` +case `FOLLOW_EVIDENCE` (PDF, 10MB); `MAX_DOCUMENT_UPLOAD_BYTES` dinaikkan 2MB->10MB (batas terbesar di antara semua kind dokumen) |
+| `src/app/api/registration/uploads/route.ts` | Set kind yang diterima +`FOLLOW_EVIDENCE` |
+| `src/features/registration/contracts.ts` | `UploadReference.kind` +`FOLLOW_EVIDENCE`; `RegistrationPayload.uploads` +`followEvidence` |
+| `src/features/registration/validation.ts` | Schema +`followEvidence`; validasi wajib untuk semua pendaftar tanpa pengecualian |
+| `src/server/registration/submit.ts` | `followEvidence` masuk `allUploadIds` dan pengecekan kecocokan kind, sama seperti CV/Photo |
+| `src/components/registration/registration-form.tsx` | Step baru `FollowEvidenceStep` (instruksi lengkap + `UploadField`) disisipkan sebagai Step 04; seluruh penomoran step/progress bar/`validateStep`/`nextStep` disesuaikan (6->7 step); Review menampilkan file ini |
+| `src/app/globals.css` | Styling blok instruksi (`.follow-evidence-instructions`) |
+| `src/features/candidates/contracts.ts`, `src/server/candidates/detail.ts` | Tipe `kind` dilebarkan +`FOLLOW_EVIDENCE`; tidak ada perubahan query visibility (kind ini tidak masuk daftar exclude) |
+| `src/app/admin/dashboard/kandidat/[id]/page.tsx` | `UPLOAD_LABEL` +`FOLLOW_EVIDENCE: "Bukti Follow dan Share"` - tampil di kartu "Dokumen" yang sama, tanpa kartu/primitive visibility baru |
+| `tests/unit/registration-validation.test.ts`, `tests/unit/upload-security.test.ts` | Test baru: wajib untuk semua pendaftar; PDF valid diterima, non-PDF dan >10MB ditolak |
+| `tests/integration/registration-flow.test.ts`, `tests/integration/load-performance.test.ts` | Payload builder +`followEvidence`; 2 test baru (tolak tanpa file, `FileUpload` FINALIZED tersimpan) |
+| `tests/e2e/registration.spec.ts` | Kedua skenario submit (non-Medbrand, Medbrand) disisipkan upload+lanjut untuk step baru |
+
+## Acceptance criteria
+
+| Kriteria | Status | Bukti |
+|---|---|---|
+| Semua pendaftar (eksekutif dan legislatif) wajib upload PDF bukti | PASS | Validasi client (`validateStep`) + server (`validation.ts`, tanpa pengecualian department/track); live-tested |
+| PDF yang bukan file PDF ditolak server | PASS | `policyFor("FOLLOW_EVIDENCE")` extension+MIME+magic byte; unit test `upload-security.test.ts`; live-tested ("Ekstensi file tidak diizinkan.") |
+| File > 10MB ditolak | PASS | `maxBytes: 10 * MEBIBYTE`; unit test dengan buffer 10MB+1 byte |
+| Dashboard PJ menampilkan link PDF yang bisa dibuka | PASS | Live-tested: link di kartu Dokumen, fetch langsung ke route viewer mengembalikan 200 `application/pdf` dengan byte `%PDF-1.4` |
+| Instruksi lengkap tampil jelas di form | PASS | Live-tested: teks lengkap (4 syarat + urutan screenshot + format nama file + contoh) tampil persis sesuai spek |
+| Progress bar step diperbarui | PASS | Live-tested: "04 Bukti Follow dan Share" muncul di antara "03 Dokumen" dan "05 Esai & Portofolio"; "Langkah X dari 7" di semua step |
+| Migration bisa rollback | PASS | Rollback (rebuild tipe enum) didokumentasikan di komentar migration.sql, pola sama seperti PORTFOLIO/BUDGET_PLAN |
+| Typecheck, lint, test, build PASS | PASS | Lihat tabel verifikasi di bawah |
+
+## Verifikasi yang dijalankan
+
+| Perintah/skenario | Hasil |
+|---|---|
+| `npx prisma migrate deploy` + `migrate diff --exit-code` (dev+test) | PASS; nol drift setelah apply migration baru |
+| `npm run typecheck` | PASS; 0 error |
+| `npm run lint` | PASS; 0 error/warning |
+| `npm run test:unit` | PASS; 13 file, 85/85 |
+| `npm run test:integration` | PASS; 14/15 file, 139/139 test lulus. 1 file (`storage-minio.test.ts`) gagal start karena `MINIO_TEST_ENDPOINT` tidak diset - pra-eksisting, tidak terkait fitur ini |
+| `npm run build` | PASS (dengan placeholder env production MinIO/Resend, pola sama seperti fase-fase sebelumnya) |
+| Script sekali-pakai: backfill 8 kandidat fixture dengan `FOLLOW_EVIDENCE` placeholder | PASS; dijalankan sekali lalu dihapus |
+| Live browser: isi form penuh jalur Eksekutif (Step 0-6), upload non-PDF di Step 04 | PASS; ditolak "Ekstensi file tidak diizinkan." |
+| Live browser: lanjut tanpa upload di Step 04 | PASS; diblokir "Bukti follow dan share (PDF) wajib diunggah." |
+| Live browser: upload PDF valid di Step 04, lanjut ke Step 05 | PASS |
+| Live browser: Step 06 Review menampilkan "Bukti Follow dan Share" dengan nama file yang benar | PASS |
+| Live browser: submit penuh sampai halaman sukses | PASS; nomor registrasi `d-0006` (kandidat verifikasi, sudah dibersihkan lagi setelah dicek - lihat di bawah) |
+| Live browser: login `superadmin.fixture@sekolah.local`, buka detail kandidat yang baru submit | PASS; kartu Dokumen menampilkan link "Bukti Follow dan Share" dengan nama file asli |
+| Fetch langsung ke route viewer file kandidat baru dan kandidat fixture lama (backfill) | PASS untuk keduanya; status 200, `content-type: application/pdf`, byte awal `%PDF-1.4` |
+
+## Migration dan konfigurasi
+
+- Migration baru: `20260907120000_add_follow_evidence_upload_kind` - diterapkan ke dev+test, nol drift dikonfirmasi. **Belum diterapkan ke production** (belum ada database production).
+- Backfill 8 kandidat fixture lewat 1 script sekali-pakai (dijalankan, lalu dihapus) - bukan lewat `prisma db seed` (`seed.ts` tidak pernah membuat baris `Candidate`/`FileUpload`, jadi tidak ada fixture seed untuk disesuaikan di file itu sendiri).
+- Kandidat sintetis yang saya buat sendiri untuk verifikasi live-browser (`d-0006`) DIHAPUS lagi setelah verifikasi selesai (lewat script sekali-pakai terpisah) - dashboard/fixture set dev sekarang kembali ke persis kondisi sebelum verifikasi ini (8 kandidat awal + backfill-nya), tidak ada data QA tambahan yang tertinggal.
+- Tidak ada dependency baru, tidak ada env var baru.
+
+## Risiko, asumsi, dan technical debt
+
+- **CSV export kandidat TIDAK menyertakan kolom Bukti Follow dan Share** - spek Anda menyebut "dashboard PJ" secara eksplisit, bukan export; dicatat sebagai kemungkinan follow-up, bukan gap yang saya anggap in-scope (konsisten dengan catatan yang sama di laporan Phase C/D untuk field lain).
+- Nama file PDF (format `[Birdep]_[Nama]_bukti follow dan share.pdf`) TIDAK divalidasi/dipaksa server - hanya instruksi UI. Memvalidasi format nama file berarti mem-parsing nama file klien yang tidak bisa dipercaya sepenuhnya (bisa direkayasa) dan tidak menambah keamanan nyata; PJ tetap melihat nama file asli untuk verifikasi manual. Dicatat sebagai keterbatasan yang diketahui, bukan disembunyikan.
+- Isi PDF (screenshot follow/share yang benar, urutan yang benar) sama sekali tidak diverifikasi otomatis - tidak mungkin tanpa OCR/verifikasi manual, dan di luar scope teknis fitur ini. Verifikasi kebenaran isi tetap sepenuhnya tanggung jawab PJ saat meninjau.
+- `tests/e2e/registration.spec.ts` (Playwright) sudah diperbarui sumbernya untuk step baru, tapi TIDAK dieksekusi di lingkungan ini (preseden dari fase-fase sebelumnya - Playwright belum pernah dijalankan di sesi ini sama sekali).
+
+## Cara saya memeriksa hasil
+
+1. `npx prisma migrate diff --exit-code` terhadap dev+test setelah apply - nol drift.
+2. `npm run typecheck && npm run lint && npm run test:unit && npm run test:integration && npm run build`.
+3. Script sekali-pakai backfill 8 kandidat fixture, dikonfirmasi lewat log output per-kandidat.
+4. Live browser (`preview_start` + Browser pane): isi form pendaftaran penuh dari Step 0 sampai submit sukses, termasuk uji negatif (non-PDF ditolak, lanjut tanpa file diblokir) di Step 04 yang baru.
+5. Live browser: login sebagai Super Admin, buka detail kandidat yang baru disubmit DAN satu kandidat fixture lama (hasil backfill), konfirmasi link "Bukti Follow dan Share" tampil di kartu Dokumen untuk keduanya.
+6. `fetch()` langsung (dari console browser, dalam sesi admin yang sudah login) ke URL viewer file untuk kedua kandidat di atas - konfirmasi response 200, `content-type: application/pdf`, dan byte pertama `%PDF-1.4` (bukan hanya mengandalkan tampilan link, tapi memastikan file sungguhan bisa dibuka).
+7. Setelah verifikasi selesai, hapus kandidat sintetis hasil test lewat script sekali-pakai supaya fixture set dev tidak tercemar data QA tambahan.
+
+## Keputusan yang dibutuhkan
+
+Tidak ada yang memblokir. Satu hal untuk diketahui (bukan pertanyaan yang perlu dijawab sekarang): saya memilih mekanisme `FileUpload`/`UploadKind.FOLLOW_EVIDENCE` (bukan kolom baru di `Candidate`) sesuai instruksi Anda untuk memilih yang paling konsisten dengan arsitektur yang ada - lihat ADR-046 untuk alasan lengkapnya jika ingin ditinjau ulang.
+
+## Batas fase
+
+Seluruh 8 tugas di "Urutan pengerjaan" dan 8 acceptance criteria yang Anda minta sudah diimplementasikan, didokumentasikan (ADR-046), dan lolos quality gate penuh (typecheck, lint, unit, integration, build) plus verifikasi manual end-to-end di browser (submit pendaftaran penuh + tinjauan dashboard PJ + fetch langsung file). **Tidak ada migration yang dijalankan terhadap database production** (belum ada database production). Ini bukan phase baru (sesuai instruksi "jangan mulai fase baru") - murni UAT feedback di atas pekerjaan Phase D yang sudah disetujui. Pekerjaan berhenti setelah laporan ini dan menunggu persetujuan Anda.

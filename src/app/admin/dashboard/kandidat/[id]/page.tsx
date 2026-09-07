@@ -24,6 +24,13 @@ const UPLOAD_LABEL: Record<string, string> = {
   CV: "CV",
   PHOTO: "Pas foto",
   STUDENT_CARD: "KTM",
+  // UAT feedback - "persyaratan follow dan share". Shown in the same
+  // generic "Dokumen" card as CV/Pas foto/KTM (visible to whichever PJ -
+  // P1 or P2 - can already see this candidate, and to Super Admin) since
+  // this requirement applies to every registrant, not one specific
+  // Birdep - unlike the Data Khusus Birdep fields, it needs no extra
+  // department-scoped visibility rule.
+  FOLLOW_EVIDENCE: "Bukti Follow dan Share",
 };
 
 // Phase C - "Field Khusus Per Birdep" (ADR-043).

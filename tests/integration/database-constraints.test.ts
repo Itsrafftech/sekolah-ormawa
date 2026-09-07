@@ -69,13 +69,13 @@ async function insertCandidate(
 
   await client.query(
     `INSERT INTO candidates
-      (id, "periodId", name, nim, "normalizedNim", "cohortCode", "className", "studyProgramId", phone, email, "normalizedEmail", gpa, domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", version, track)
+      (id, "periodId", name, nim, "normalizedNim", "cohortCode", "className", "studyProgram", phone, email, "normalizedEmail", gpa, domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", version, track)
      VALUES ($1, $2, 'Kandidat Fixture', 'I-FIXTURE', $3, 63, 'A', $4, '+628000000000', 'fixture@example.test', $5, $6, 'Bogor', 'Fixture', 'Fixture', 'Fixture', 'SUBMITTED', now(), now(), 0, 'EXECUTIVE')`,
     [
       candidateId,
       fixture.periodId,
       overrides.normalizedNim ?? `NIM-${candidateId}`,
-      fixture.studyProgramId,
+      "Program Studi Fixture",
       overrides.normalizedEmail ?? `${candidateId}@example.test`,
       // No default fake gpa (IPK removed from the product - ADR-040); the
       // column stays nullable+CHECK-constrained at the DB layer, so NULL

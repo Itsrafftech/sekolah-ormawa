@@ -236,6 +236,10 @@ model PeriodDepartment {
   @@map("period_departments")
 }
 
+// UAT feedback (post-Phase D): no longer referenced by Candidate -
+// registration now takes program studi as free text (Candidate.studyProgram
+// String). Left in place rather than dropped - deleting this table/model
+// was not requested and is a separate, irreversible decision.
 model StudyProgram {
   id           String       @id @default(uuid())
   code         String       @unique
@@ -244,7 +248,6 @@ model StudyProgram {
   isActive     Boolean      @default(false)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
-  candidates   Candidate[]
 
   @@map("study_programs")
 }
@@ -259,7 +262,14 @@ model Candidate {
   cohortCode         Int
   entryYear          Int?
   className          String
-  studyProgramId     String
+  // UAT feedback (post-Phase D): free text instead of a foreign key to
+  // StudyProgram - the master-data list was incomplete and blocked
+  // candidates from registering under their actual program. Was
+  // `studyProgramId String` (FK) before this migration; StudyProgram
+  // itself is left in the schema (unused by this model going forward)
+  // rather than dropped - deleting the table was not requested and
+  // dropping it is a separate, irreversible decision from this one.
+  studyProgram       String
   phone              String
   email              String
   normalizedEmail    String
@@ -300,7 +310,6 @@ model Candidate {
   selectionDecision  SelectionDecision?
   supplementalData   CandidateSupplementalData?
   period             RecruitmentPeriod          @relation(fields: [periodId], references: [id])
-  studyProgram       StudyProgram               @relation(fields: [studyProgramId], references: [id])
   notes              DepartmentNote[]
   uploads            FileUpload[]
   confirmations      RegistrationConfirmation[]
@@ -596,12 +605,20 @@ enum ChoiceRank {
 /// either kind going forward; validateUploadFile()/the upload API reject
 /// both. Any pre-Phase-D FileUpload/CandidatePortfolio rows using
 /// PORTFOLIO were dropped with the CandidatePortfolio table itself.
+///
+/// FOLLOW_EVIDENCE (UAT feedback - "persyaratan follow dan share"): one
+/// required PDF per candidate, applies to every registrant regardless of
+/// track/department - reuses the generic FileUpload/UploadKind mechanism
+/// exactly like CV/PHOTO/STUDENT_CARD (no dedicated Candidate columns),
+/// since it is structurally identical to those: one file, one owner, one
+/// lifecycle, already-authorized viewer route.
 enum UploadKind {
   CV
   PHOTO
   STUDENT_CARD
   PORTFOLIO
   BUDGET_PLAN
+  FOLLOW_EVIDENCE
 }
 
 enum UploadStatus {
