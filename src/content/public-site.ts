@@ -146,7 +146,8 @@ export const publicSiteContent = {
     credit: "Program kerja Departemen PSDM, Ormawa Eksekutif PKU.",
   },
   contact: {
-    whatsappGroupLabel: "Gabung grup WhatsApp peserta",
+    // "Tambahan Halaman Sukses": wording tombol persis spesifikasi.
+    whatsappGroupLabel: "Gabung Grup WhatsApp",
     whatsappGroupUrl: "https://chat.whatsapp.com/JYfi6GQcRyAJmvb7kUDqBu",
   },
 } as const;
