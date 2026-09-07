@@ -56,6 +56,37 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+# schema.prisma's own `datasource db` block declares no `url` at all -
+# this project resolves it (and the `db seed` command) exclusively through
+# prisma.config.ts at the repo root, a SIBLING of the prisma/ folder above,
+# not inside it - `COPY .../prisma ./prisma` above never picks this up.
+# Without it, `prisma migrate deploy`/`db seed` fail outright ("The
+# datasource.url property is required in your Prisma config file" /
+# "No seed command configured") no matter how correct DATABASE_URL is in
+# the environment, because there is nowhere left for the CLI to read it
+# from.
+COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
+# `prisma db seed` runs prisma/seed.ts directly via `tsx` (see
+# prisma.config.ts's `migrations.seed`) - a completely separate execution
+# path from the compiled Next.js server, which bypasses .next/standalone
+# entirely and needs REAL TypeScript source files on disk to resolve
+# imports (the generated Prisma Client at src/generated/prisma, plus
+# whatever else seed.ts imports - src/lib/auth/password.ts today, more
+# later as the seed script grows). Next's own server code gets this for
+# free (webpack/turbopack bundles every import straight into
+# .next/standalone/.next/server/*.js), so nothing surfaced this gap until
+# `db seed` was actually run in this image. Copying the whole `src/` tree
+# (plain TypeScript source, negligible size next to node_modules) rather
+# than cherry-picking individual subfolders means any future one-off ops
+# script invoked the same way (`tsx <script>.ts`, the established pattern
+# for this project's one-off backfills) resolves its imports too, not just
+# today's seed.ts.
+COPY --from=builder --chown=nextjs:nodejs /app/src ./src
+# tsx resolves `@/...` path aliases (used throughout src/, including by
+# future one-off ops scripts following this project's established pattern)
+# via tsconfig.json - without it present, any such import fails the same
+# way the plain-relative ones above did.
+COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
 
 # The `prisma` CLI (needed for `prisma migrate deploy`/`prisma db seed` -
 # see RUNBOOK.md §Deployment readiness, run via `docker compose run --rm
