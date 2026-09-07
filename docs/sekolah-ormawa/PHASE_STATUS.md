@@ -1494,3 +1494,107 @@ Tidak ada yang memblokir. Satu hal untuk diketahui (bukan pertanyaan yang perlu 
 ## Batas fase
 
 Seluruh 8 tugas di "Urutan pengerjaan" dan 8 acceptance criteria yang Anda minta sudah diimplementasikan, didokumentasikan (ADR-046), dan lolos quality gate penuh (typecheck, lint, unit, integration, build) plus verifikasi manual end-to-end di browser (submit pendaftaran penuh + tinjauan dashboard PJ + fetch langsung file). **Tidak ada migration yang dijalankan terhadap database production** (belum ada database production). Ini bukan phase baru (sesuai instruksi "jangan mulai fase baru") - murni UAT feedback di atas pekerjaan Phase D yang sudah disetujui. Pekerjaan berhenti setelah laporan ini dan menunggu persetujuan Anda.
+
+---
+
+# Hasil UAT - Guidebook, Ketentuan, dan Pembayaran
+
+## Status
+
+PASS (dengan 1 keterbatasan verifikasi - lihat "Risiko" di bawah)
+
+## Ringkasan hasil
+
+Tiga perubahan pada form pendaftaran: (1) banner + checkbox wajib guidebook di Step 0, (2) reorder step - Esai & Portofolio pindah SEBELUM Bukti Follow dan Share, dan (3) step baru Pembayaran (kode unik 3 digit + Gopay/QRIS + upload bukti) sebelum Review & Submit. Urutan final: **00 Guidebook & Jalur, 01 Identitas, 02 Pilihan Birdep, 03 Dokumen, 04 Esai & Portofolio, 05 Bukti Follow dan Share, 06 Pembayaran, 07 Review & Submit** (8 langkah, dari sebelumnya 7).
+
+**Guidebook (Step 0)**: banner mencolok (bukan link biasa) ke Google Drive persis URL yang Anda berikan, `target="_blank"`, plus checkbox wajib - baik `validateStep` client maupun schema Zod server menolak lanjut tanpa dicentang.
+
+**Pembayaran (Step 06)**: kode unik 3 digit dibuat ATOMIK per periode (pola identik nomor registrasi - `RecruitmentPeriod.paymentCodeSequence`, satu `UPDATE ... increment`) lewat endpoint baru `GET /api/registration/payment-code`, dipanggil sekali saat registrant pertama kali masuk step ini lalu disimpan ke draft localStorage (schema draft naik ke versi 5) supaya tidak diterbitkan ulang saat reload. Info box menampilkan "Rp 15.000 + kode unik" persis format yang Anda minta, termasuk contoh perhitungan. Gopay (081273239606 a.n. Farhanah Nurul Lathifah, dengan tombol salin nomor) dan QRIS (placeholder "[QRIS akan tersedia]" dengan fallback otomatis - **lihat catatan penting di bawah**) ditampilkan berdampingan. Upload bukti pembayaran (JPG/PNG/PDF, 5MB, wajib) memakai ulang mekanisme `FileUpload`/`UploadKind.PAYMENT_EVIDENCE` yang sama seperti CV/Bukti Follow.
+
+**Catatan penting**: saat laporan ini ditulis, `public/images/qris.png` **sudah ada** di working tree (bukan saya yang menambahkan - lihat commit `77739ab "form new"` yang mencakup file tersebut). Komponen `<img>` saya sudah mem-fallback ke placeholder teks lewat `onError`, jadi begitu file itu ada, gambar QRIS asli akan langsung tampil otomatis tanpa perubahan kode - tidak perlu tindakan lebih lanjut dari Anda untuk ini.
+
+**Database**: `Candidate.paymentCode`/`paymentAmount` (kolom langsung, sesuai instruksi eksplisit Anda - bukan `FileUpload`), `@@unique([periodId, paymentCode])`. 8 kandidat fixture yang sudah ada di-backfill kode sekuensial 001-008 lewat migration SQL (`ROW_NUMBER()` terurut `submittedAt`) - **tanpa script terpisah**, murni SQL karena tidak melibatkan storage/file seperti backfill `FOLLOW_EVIDENCE` sebelumnya.
+
+## Perubahan utama
+
+| File/modul | Tujuan perubahan |
+|---|---|
+| `prisma/schema.prisma` | `RecruitmentPeriod.paymentCodeSequence`; `Candidate.paymentCode`/`paymentAmount` + unique index; `UploadKind` +`PAYMENT_EVIDENCE` |
+| `prisma/migrations/20260907150000_guidebook_and_payment/` | Migration baru: kolom+backfill+index+enum value; rollback didokumentasikan |
+| `docs/sekolah-ormawa/DECISIONS.md` | ADR-047 (keputusan arsitektur: kolom Candidate vs FileUpload, atomic counter, CSRF, path endpoint) |
+| `src/lib/env.ts`, `.env.example` | `PAYMENT_BASE_AMOUNT` (default 15000) |
+| `src/features/registration/file-validation.ts` | `policyFor()` +case `PAYMENT_EVIDENCE` (JPG/PNG/PDF, 5MB) |
+| `src/app/api/registration/uploads/route.ts` | Set kind yang diterima +`PAYMENT_EVIDENCE` |
+| `src/app/api/registration/payment-code/route.ts` | **Endpoint baru** - GET, atomic counter, rate limit, tanpa CSRF (lihat ADR-047) |
+| `src/server/auth/rate-limit.ts` | Scope baru `REGISTRATION_PAYMENT_CODE` |
+| `src/features/registration/contracts.ts` | Schema draft v4->v5; `guidebookAcknowledged`, `payment{code,amount}`, `uploads.paymentEvidence`, `paymentBaseAmount` di config |
+| `src/features/registration/validation.ts` | Validasi guidebook/kode/bukti pembayaran wajib |
+| `src/server/registration/config.ts` | Config +`paymentBaseAmount` |
+| `src/server/registration/submit.ts` | `paymentCode`/`paymentAmount` (dihitung ulang server-side, tidak dipercaya dari client) masuk `candidate.create()`; pesan konflik unique diperluas |
+| `src/components/registration/registration-form.tsx` | Reorder step besar-besaran; `TrackStep` +banner/checkbox; `PaymentStep` baru; `ReviewStep` +section Pembayaran |
+| `src/app/globals.css` | Styling guidebook banner + payment info box/methods/instructions; **perbaikan bug pra-existing** `--burgundy` yang tidak pernah didefinisikan (lihat "Risiko" di bawah) |
+| `src/features/candidates/contracts.ts`, `src/server/candidates/detail.ts` | `paymentCode`/`paymentAmount` di `CandidateDetail`; kind upload +`PAYMENT_EVIDENCE` |
+| `src/app/admin/dashboard/kandidat/[id]/page.tsx` | Card "Pembayaran" baru (kode, total, link bukti) - terpisah dari card "Dokumen" |
+| `tests/unit/*.test.ts`, `tests/integration/*.test.ts`, `tests/e2e/*.spec.ts` | Disesuaikan penuh - lihat detail verifikasi di bawah |
+
+## Acceptance criteria
+
+| Kriteria | Status | Bukti |
+|---|---|---|
+| Urutan step benar (00-07) sesuai spek | PASS | Live-tested: progress bar+header ("Delapan langkah...") tampil persis urutan yang diminta |
+| Banner guidebook mencolok, buka tab baru, checkbox wajib | PASS | Live-tested: `target="_blank"`, `href` persis, tombol "Simpan & lanjut" disabled sekaligus error message sebelum dicentang |
+| Info pembayaran format "Rp 15.000 + kode unik" | PASS | Kode dibaca live dari server (`GET /api/registration/payment-code` diuji langsung via curl - lihat verifikasi) |
+| Kode unik 3 digit, atomik, unik per periode, tersimpan DB | PASS | Diverifikasi live: 2 panggilan endpoint mengembalikan `009`->`010` berurutan tanpa tabrakan; integration test menolak submit dengan kode yang sudah dipakai kandidat lain |
+| Gopay + QRIS ditampilkan | PASS | Nomor/nama Gopay persis spesifikasi + tombol salin; QRIS placeholder dengan fallback otomatis ke gambar asli begitu file tersedia |
+| Upload bukti pembayaran wajib, JPG/PNG/PDF, 5MB | PASS | Unit test `policyFor("PAYMENT_EVIDENCE")`; server menolak ekstensi lain dan file >5MB |
+| Dashboard PJ/Super Admin menampilkan kode, total, link bukti | PASS | `getCandidateDetail`/`page.tsx` diperiksa kode; **belum di-live-test lewat klik browser** (lihat "Risiko") |
+| Migration rollback-able, backfill kandidat fixture | PASS | Rollback didokumentasikan; 8 kandidat fixture terverifikasi punya `paymentCode` 001-008 lewat query DB langsung |
+| Typecheck, lint, test, build PASS | PASS | Lihat tabel verifikasi |
+
+## Verifikasi yang dijalankan
+
+| Perintah/skenario | Hasil |
+|---|---|
+| `npx prisma migrate deploy` + `migrate diff --exit-code` (dev+test) | PASS; nol drift |
+| `npm run typecheck` | PASS; 0 error |
+| `npm run lint` (`--max-warnings 0`) | PASS; 0 warning |
+| `npm run test:unit` | PASS; 13 file, **88/88** (naik dari 85 - 3 test baru: guidebook, kode+bukti pembayaran, `policyFor` PAYMENT_EVIDENCE) |
+| `npm run test:integration` | PASS; 15/15 file, **148/148** (naik dari 145 - 3 test baru: validasi wajib, submit berhasil dengan `paymentCode`/`paymentAmount` tersimpan benar, penolakan kode duplikat) |
+| `npm run build` | PASS |
+| Query DB langsung: backfill 8 kandidat fixture | PASS; `paymentCode` 001-008, `paymentAmount` 15001-15008, `paymentCodeSequence` periode ter-bootstrap ke 8 |
+| `curl GET /api/registration/payment-code` (2x berurutan, terhadap dev server sungguhan) | PASS; `009`->`010`, DB `paymentCodeSequence` naik sinkron, direset kembali ke 8 setelah verifikasi (tidak meninggalkan gap) |
+| `curl GET /api/registration/payment-code` dengan `periodId` salah/tertutup | PASS; 409 sesuai desain |
+| Live browser: Step 0 tanpa checkbox dicentang | PASS; tombol disabled, tidak bisa lanjut |
+| Live browser: Step 0 sampai Step 3 (identitas, pilihan Birdep, upload CV/foto) | PASS; urutan step, progress bar, upload semua bekerja |
+| **Live browser: Step 4 (Esai) sampai submit penuh + dashboard PJ** | **TIDAK SELESAI - lihat "Risiko" di bawah** |
+
+## Migration dan konfigurasi
+
+- Migration baru: `20260907150000_guidebook_and_payment` - diterapkan ke dev+test, nol drift dikonfirmasi. **Belum diterapkan ke production**.
+- Tidak ada dependency baru. `PAYMENT_BASE_AMOUNT` env var baru (default 15000, tidak wajib diisi kecuali ingin mengubah nominal).
+- **Commit**: perubahan sesi ini sudah ter-commit ke `main` sebagai `77739ab "form new"` - **bukan saya yang commit** (saya tidak pernah menjalankan `git commit`; konsisten dengan instruksi "commit hanya jika diminta"). Commit itu juga menyertakan `public/images/qris.png` yang tidak saya buat - lihat catatan di "Ringkasan hasil".
+
+## Risiko, asumsi, dan technical debt
+
+- **Verifikasi live browser tidak selesai untuk Step 4 dan seterusnya (Esai, Follow, Pembayaran, dashboard PJ)**. Penyebab: `.env` lokal Anda berubah menjadi nilai mendekati production (`NODE_ENV=production`, `NEXT_PUBLIC_APP_URL=https://sekolah.ormawaeksekutifpku.com`, `AUTH_SECRET`/`IP_HASH_SECRET`/`RESEND_API_KEY`/kredensial MinIO yang terlihat asli) - berbeda dari state dev-safe yang saya set di sesi sebelumnya. Ini membuat SEMUA request state-changing (upload, submit, login) ditolak `assertValidCsrf` karena `Origin` browser (`http://localhost:3000`) tidak cocok dengan `NEXT_PUBLIC_APP_URL`. Saya konfirmasi ke Anda dan Anda menyatakan ini perubahan yang **Anda lakukan sendiri, sengaja** - jadi saya TIDAK mengubah `.env` dan melewati verifikasi browser interaktif untuk sisa alur, mengandalkan test otomatis (yang sudah PASS penuh dan benar-benar menguji jalur `submitRegistration()` yang sama terhadap Postgres sungguhan) sebagai gantinya. Endpoint `GET /api/registration/payment-code` sendiri tetap bisa diverifikasi live karena sengaja tidak memakai CSRF check (lihat ADR-047).
+- **Perbaikan bug pra-existing di `globals.css`**: `var(--burgundy)` dipakai di beberapa tempat sejak fase-fase sebelumnya (`.track-option.is-selected`, `.follow-evidence-instructions`, panel seleksi) tapi TIDAK PERNAH didefinisikan di `:root` - setiap elemen itu selama ini render tanpa warna aksen yang dimaksud. Saya temukan ini saat menambah `payment-info-box` yang butuh token yang sama, lalu mendefinisikannya (satu baris, warna `#7a1d2d` mengikuti tint rgba yang sudah dipakai di sebelahnya) supaya kode baru saya tidak mewarisi bug yang sama - ini juga otomatis memperbaiki elemen lama yang terpengaruh.
+- Kode pembayaran tidak dijamin gapless (sama seperti nomor registrasi) dan format "3 digit" tidak dijamin bertahan lewat 999 registrant/periode - didokumentasikan di ADR-047, bukan bug.
+- Tidak ada backfill placeholder `PAYMENT_EVIDENCE` untuk 8 kandidat fixture lama (beda dari `FOLLOW_EVIDENCE`) - keputusan sadar, lihat ADR-047.
+
+## Cara saya memeriksa hasil
+
+1. `npx prisma migrate diff --exit-code` terhadap dev+test setelah apply - nol drift.
+2. `npm run typecheck && npm run lint && npm run test:unit && npm run test:integration && npm run build`.
+3. Query DB langsung (psql) untuk backfill 8 kandidat fixture dan bootstrap `paymentCodeSequence`.
+4. `curl` langsung ke `GET /api/registration/payment-code` terhadap dev server sungguhan (2x berurutan + 1x periode salah) - endpoint ini tidak terpengaruh masalah CSRF di atas.
+5. Live browser: Step 0 (banner/checkbox/disabled state) sampai Step 3 (upload CV/foto) - terhenti di sini karena masalah `.env` yang dikonfirmasi Anda sengaja.
+6. Membaca ulang `submit.ts`/`validation.ts`/`detail.ts`/`page.tsx` untuk memastikan `paymentCode`/`paymentAmount` selalu dihitung ulang server-side, tidak pernah dipercaya dari client.
+
+## Keputusan yang dibutuhkan
+
+1. **Konfirmasi `.env` lokal**: sudah Anda konfirmasi sengaja - tidak ada tindakan dari saya. Sekadar dicatat di sini supaya jelas kenapa verifikasi browser interaktif berhenti di Step 3.
+2. Tidak ada blocker lain. ADR-047 mendokumentasikan seluruh keputusan arsitektur (kolom Candidate vs FileUpload, atomic counter, CSRF, path endpoint) untuk ditinjau bila perlu.
+
+## Batas fase
+
+Seluruh 9 langkah "Urutan pengerjaan" dan seluruh acceptance criteria sudah diimplementasikan dan didokumentasikan (ADR-047). Quality gate otomatis PENUH lolos (typecheck, lint, 88 unit test, 148 integration test, build). Verifikasi live browser selesai untuk Step 0-3; Step 4 ke atas tidak diverifikasi interaktif karena perubahan `.env` lokal yang Anda konfirmasi sengaja - digantikan test otomatis yang mencakup jalur server yang sama. Perubahan kode sudah ter-commit (bukan oleh saya) sebagai `77739ab`. Ini bukan phase baru sesuai instruksi Anda. Pekerjaan berhenti setelah laporan ini dan menunggu instruksi Anda.
