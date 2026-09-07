@@ -10,8 +10,8 @@ export default function OpenGraphImage() {
       <div
         style={{
           alignItems: "stretch",
-          background: "#f2eadb",
-          color: "#241917",
+          background: "#f5f7fb",
+          color: "#0b1220",
           display: "flex",
           height: "100%",
           padding: "64px",
@@ -21,7 +21,7 @@ export default function OpenGraphImage() {
       >
         <div
           style={{
-            border: "2px solid #702330",
+            border: "2px solid #0035ad",
             borderRadius: "999px",
             height: "410px",
             position: "absolute",
@@ -33,9 +33,9 @@ export default function OpenGraphImage() {
         <div
           style={{
             alignItems: "center",
-            background: "#702330",
+            background: "#f4e11b",
             borderRadius: "999px",
-            color: "#f2eadb",
+            color: "#00205b",
             display: "flex",
             fontSize: 118,
             height: "310px",
@@ -53,7 +53,7 @@ export default function OpenGraphImage() {
             Eksekutif PKU · DRAFT
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <div style={{ color: "#702330", display: "flex", fontSize: 76, lineHeight: 1 }}>Sekolah</div>
+            <div style={{ color: "#0035ad", display: "flex", fontSize: 76, lineHeight: 1 }}>Sekolah</div>
             <div style={{ display: "flex", fontSize: 104, lineHeight: 0.95 }}>Ormawa</div>
             <div style={{ display: "flex", fontSize: 25, marginTop: 28 }}>Belajar organisasi dari dalam, bertumbuh bersama.</div>
           </div>
