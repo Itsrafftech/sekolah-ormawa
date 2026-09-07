@@ -65,7 +65,7 @@ export default async function HomePage() {
               <span>IPB 63</span>
             </div>
             <h1 id="home-title">
-              Belajar organisasi
+              Belajar <mark className="hl">organisasi</mark>
               <span> dari dalam,</span>
               <em> bertumbuh bersama.</em>
             </h1>
@@ -136,6 +136,31 @@ export default async function HomePage() {
                 <p>{copy}</p>
               </article>
             ))}
+          </div>
+        </section>
+
+        <section className="impact-band" aria-labelledby="impact-title">
+          <div className="impact-band__inner">
+            <div className="impact-band__lead">
+              <span className="section-index">03 / KOMITMEN</span>
+              <h2 id="impact-title">
+                Tiga hal yang sudah pasti, <mark className="hl">sebelum</mark> satu pun pendaftaran dibuka.
+              </h2>
+            </div>
+            <div className="impact-band__stats">
+              <article>
+                <strong>{publicData.departments.length || 13}</strong>
+                <span>Unit kerja (BPH/Biro/Departemen) siap dikenali lewat direktori Birdep.</span>
+              </article>
+              <article>
+                <strong>63</strong>
+                <span>Angkatan IPB yang menjadi sasaran program pengenalan ini.</span>
+              </article>
+              <article>
+                <strong>3</strong>
+                <span>Gerak belajar yang membentuk perjalanan: Kenal, Coba, Tumbuh.</span>
+              </article>
+            </div>
           </div>
         </section>
 
@@ -266,7 +291,9 @@ export default async function HomePage() {
         <section className="closing-cta section-pad">
           <div className="closing-cta__copy">
             <p className="eyebrow">Langkah berikutnya</p>
-            <h2>Siap mengenal organisasi dari jarak yang lebih dekat?</h2>
+            <h2>
+              Siap <mark className="hl">mengenal</mark> organisasi dari jarak yang lebih dekat?
+            </h2>
             <p>
               Tombol mengikuti status periode dan gate rilis dari server. Data DRAFT tidak pernah membuka form.
             </p>
