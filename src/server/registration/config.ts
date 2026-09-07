@@ -95,7 +95,7 @@ export async function getRegistrationAvailability(
       essayMinWords: environment.ESSAY_MIN_WORDS,
       essayMaxWords: environment.ESSAY_MAX_WORDS,
       portfolioUrlMaxLength: environment.PORTFOLIO_URL_MAX_LENGTH,
-      paymentBaseAmount: environment.PAYMENT_BASE_AMOUNT,
+      paymentAmount: environment.PAYMENT_AMOUNT,
       draftTtlSeconds: environment.REGISTRATION_DRAFT_TTL_SECONDS,
       departments: period.departments.map(({ department }) => ({
         id: department.id,

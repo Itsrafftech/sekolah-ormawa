@@ -52,7 +52,7 @@ const config: RegistrationFormConfig = {
   essayMinWords: 1,
   essayMaxWords: 1000,
   portfolioUrlMaxLength: 2048,
-  paymentBaseAmount: 15000,
+  paymentAmount: 15001,
   draftTtlSeconds: 3600,
   departments: [
     department({ id: departmentA, code: "A", name: "A", shortName: "A" }),
@@ -99,7 +99,6 @@ function payload(): RegistrationPayload {
       paymentEvidence: { id: "40000000-0000-4000-8000-000000000004", kind: "PAYMENT_EVIDENCE", name: "bukti-bayar.pdf", sizeBytes: 100, mimeType: "application/pdf" },
     },
     essays: { organizationExperience: "Sintetis", contribution: "Sintetis", academicBalance: "Sintetis" },
-    payment: { code: "001", amount: 15001 },
     departmentFields: {},
     consent: { truthful: true, processing: true, version: config.consentVersion },
   };
@@ -137,13 +136,10 @@ describe("registration validation", () => {
     if (!result.success) expect(result.errors.guidebookAcknowledged).toBeTruthy();
   });
 
-  it("menolak pendaftaran tanpa kode pembayaran atau tanpa bukti pembayaran (wajib untuk semua pendaftar)", () => {
-    const withoutCode = payload();
-    withoutCode.payment.code = null;
-    const codeResult = validateRegistrationPayload(withoutCode, config);
-    expect(codeResult.success).toBe(false);
-    if (!codeResult.success) expect(codeResult.errors["payment.code"]).toBeTruthy();
-
+  // "Perubahan Sistem Pembayaran" (ADR-048): tidak ada lagi kode unik untuk
+  // divalidasi - nominal tetap untuk semua pendaftar, hanya bukti
+  // pembayaran yang tetap wajib.
+  it("menolak pendaftaran tanpa bukti pembayaran (wajib untuk semua pendaftar)", () => {
     const withoutEvidence = payload();
     withoutEvidence.uploads.paymentEvidence = null;
     const evidenceResult = validateRegistrationPayload(withoutEvidence, config);

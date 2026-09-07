@@ -1,11 +1,8 @@
-// Bumped to 5: "Guidebook, ketentuan, dan pembayaran" adds
-// guidebookAcknowledged and a payment code assigned server-side when the
-// registrant reaches the Payment step - a draft saved under schema 4
-// predates both and must be discarded rather than restored (an old draft
-// resuming past Step 0 without ever seeing the new required checkbox, or
-// carrying a stale/nonexistent payment code, would be worse than asking
-// the registrant to redo the (short) early steps).
-export const REGISTRATION_DRAFT_SCHEMA_VERSION = 5;
+// Bumped to 6: "Perubahan Sistem Pembayaran" drops the per-registrant
+// payment code entirely (fixed amount for everyone now, see ADR-048) - a
+// schema-5 draft may carry a `payment.code`/`payment.amount` shape that no
+// longer exists, so it is discarded rather than restored.
+export const REGISTRATION_DRAFT_SCHEMA_VERSION = 6;
 
 // Phase A/B - "Jalur Legislatif". Still optional on the payload type
 // (not required) even though the form now always sets it from Step 0
@@ -98,18 +95,6 @@ export type RegistrationPayload = {
     contribution: string;
     academicBalance: string;
   };
-  // "Guidebook, ketentuan, dan pembayaran": `code` is assigned server-side
-  // (GET /api/registration/payment-code) the first time the registrant
-  // reaches the Payment step, then persisted through the localStorage
-  // draft so it is never re-issued on revisit/reload - null until that
-  // first fetch completes. `amount` mirrors what the server told the
-  // client the total is (PAYMENT_BASE_AMOUNT + code) purely for display;
-  // submit.ts always recomputes and stores the authoritative amount
-  // server-side from `code` alone, never trusting this field.
-  payment: {
-    code: string | null;
-    amount: number | null;
-  };
   // Phase C - "Field Khusus Per Birdep". Populated only for the
   // department each field belongs to (KOMIT's MBTI, Adkesmah's focus
   // area) - undefined/omitted whenever the candidate's chosen Birdep
@@ -147,11 +132,10 @@ export type RegistrationFormConfig = {
   // mechanism - portfolioUrlMaxLength is the only cap still relevant
   // (applies to both the portfolio and RAB Google Drive URL fields).
   portfolioUrlMaxLength: number;
-  // "Guidebook, ketentuan, dan pembayaran": base registration fee before
-  // the per-registrant unique code is added (see payment.amount above) -
-  // read from PAYMENT_BASE_AMOUNT so the org can change the fee via
-  // environment configuration without a code change.
-  paymentBaseAmount: number;
+  // "Perubahan Sistem Pembayaran": fixed registration fee shown to every
+  // registrant (see ADR-048) - read from PAYMENT_AMOUNT so the org can
+  // change the fee via environment configuration without a code change.
+  paymentAmount: number;
   draftTtlSeconds: number;
   departments: Array<{
     id: string;

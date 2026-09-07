@@ -33,10 +33,6 @@ const UPLOAD_LABEL: Record<string, string> = {
   FOLLOW_EVIDENCE: "Bukti Follow dan Share",
 };
 
-function formatRupiah(value: number): string {
-  return `Rp ${value.toLocaleString("id-ID")}`;
-}
-
 // Phase C - "Field Khusus Per Birdep" (ADR-043).
 const ADKESMAH_FOCUS_LABEL: Record<string, string> = {
   ADVOCACY: "Advokasi Mahasiswa",
@@ -57,11 +53,11 @@ export default async function CandidateDetailPage({ params, searchParams }: Page
   const notes = (await listDepartmentNotes(id, departmentId)) ?? [];
   const backHref = context.role === "SUPER_ADMIN" ? `/admin/dashboard?departmentId=${departmentId}` : "/admin/dashboard";
   const fileHref = (fileId: string) => `/api/admin/candidates/${id}/files/${fileId}?departmentId=${departmentId}`;
-  // "Guidebook, ketentuan, dan pembayaran": shown in its own "Pembayaran"
-  // card alongside paymentCode/paymentAmount, not the generic "Dokumen"
-  // list - same visibility as Dokumen (whichever PJ can see this
-  // candidate, plus Super Admin), just grouped with the other payment
-  // fields for a reviewer verifying payment manually.
+  // "Perubahan Sistem Pembayaran": kartu "Pembayaran" sekarang hanya
+  // menampilkan bukti pembayaran (kode unik/total dihapus - nominal sama
+  // untuk semua pendaftar, lihat ADR-048) - tetap terpisah dari kartu
+  // "Dokumen" generik, visibilitas sama (PJ yang bisa melihat kandidat ini,
+  // plus Super Admin).
   const paymentEvidence = candidate.uploads.find((upload) => upload.kind === "PAYMENT_EVIDENCE");
   const documentUploads = candidate.uploads.filter((upload) => upload.kind !== "PAYMENT_EVIDENCE");
 
@@ -129,16 +125,12 @@ export default async function CandidateDetailPage({ params, searchParams }: Page
           </ul>
         </div>
 
-        {/* "Guidebook, ketentuan, dan pembayaran": dedicated Pembayaran
-            card - kode unik, total, dan bukti pembayaran via signed URL
-            (same file-viewer route as CV/Dokumen, kind-agnostic). Same
-            visibility as Dokumen (no extra department-scoped rule). */}
+        {/* "Perubahan Sistem Pembayaran" (ADR-048): dedicated Pembayaran
+            card - bukti pembayaran via signed URL (same file-viewer route
+            as CV/Dokumen, kind-agnostic). Same visibility as Dokumen (no
+            extra department-scoped rule). */}
         <div className="candidate-detail__card">
           <h2>Pembayaran</h2>
-          <dl>
-            <div><dt>Kode unik</dt><dd>{candidate.paymentCode}</dd></div>
-            <div><dt>Total yang harus dibayar</dt><dd>{formatRupiah(candidate.paymentAmount)}</dd></div>
-          </dl>
           <ul className="candidate-detail__files">
             {paymentEvidence ? (
               <li>

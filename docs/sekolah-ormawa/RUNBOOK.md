@@ -311,6 +311,7 @@ Migration history saat ini (`prisma/migrations/`, diterapkan berurutan berdasark
 12. `20260907090000_study_program_free_text`
 13. `20260907120000_add_follow_evidence_upload_kind`
 14. `20260907150000_guidebook_and_payment`
+15. `20260908080000_revert_payment_to_fixed_amount` ("Perubahan Sistem Pembayaran" - ADR-048, membalik sebagian migration 14: drop `Candidate.paymentCode`/`paymentAmount` dan `RecruitmentPeriod.paymentCodeSequence`)
 
 **Prasyarat image**: `Dockerfile`'s runner stage menyertakan penuh `node_modules` dari stage `deps` (bukan cuma output standalone Next.js) supaya CLI `prisma` (devDependency, tidak pernah di-trace masuk oleh Next's standalone output tracing karena tidak diimpor kode aplikasi - beda dari `@prisma/client` yang memang dipakai runtime) tersedia offline di versi yang persis sama dengan `package-lock.json`. Tanpa ini, `npx prisma ...` di dalam container mencoba auto-install versi prisma TERBARU dari npm (bisa berbeda major version, berisiko untuk migration) dan bisa gagal total (pernah terjadi: npm resolver crash "Cannot read properties of null (reading 'edgesOut')" saat mencoba install `prisma@8.0.0-rc.13` di image yang belum punya perbaikan ini). Image yang dibangun dari `Dockerfile` versi sekarang sudah membawa `prisma` CLI offline - pastikan image yang dipakai di server adalah hasil build ULANG setelah perbaikan ini (`docker compose -f docker-compose.prod.yml build app`), bukan image lama.
 

@@ -102,20 +102,7 @@ afterAll(async () => {
   await pool.end();
 });
 
-// "Guidebook, ketentuan, dan pembayaran": periodId+paymentCode is now
-// unique, so every concurrently-built payload in the P4 spike test below
-// needs a distinct code - a module-level counter incremented at the very
-// top of buildPayload(), before its first `await`. Array.from's mapping
-// callback below invokes buildPayload() synchronously once per index (a
-// function call always runs synchronously up to its first await/return,
-// even though it's declared `async`), so the increments themselves can
-// never interleave regardless of how the resulting promises later
-// interleave at their own await points.
-let paymentCodeCounter = 0;
-
 async function buildPayload(suffix: string): Promise<{ payload: RegistrationPayload; ownerToken: string }> {
-  paymentCodeCounter += 1;
-  const paymentCode = String(paymentCodeCounter).padStart(3, "0");
   const ownerToken = `owner-load-${suffix}`;
   const cv = await createPrivateUpload({
     periodId, ownerToken, kind: "CV", fileName: `cv-${suffix}.pdf`, declaredMimeType: "application/pdf", bytes: pdf, storage,
@@ -157,7 +144,6 @@ async function buildPayload(suffix: string): Promise<{ payload: RegistrationPayl
         paymentEvidence: { id: paymentEvidence.id, kind: "PAYMENT_EVIDENCE", name: paymentEvidence.originalFileName, sizeBytes: paymentEvidence.sizeBytes, mimeType: paymentEvidence.detectedMimeType ?? "application/pdf" },
       },
       essays: { organizationExperience: "Sintetis", contribution: "Sintetis", academicBalance: "Sintetis" },
-      payment: { code: paymentCode, amount: 15000 + Number(paymentCode) },
       departmentFields: {},
       consent: { truthful: true, processing: true, version: "DRAFT-CONSENT-LOAD" },
     },

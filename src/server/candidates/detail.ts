@@ -128,8 +128,6 @@ export async function getCandidateDetail(
     essayBalance: candidate.essayBalance,
     status: candidate.status,
     submittedAt: candidate.submittedAt.toISOString(),
-    paymentCode: candidate.paymentCode,
-    paymentAmount: candidate.paymentAmount,
     choices: candidate.choices.map((choice) => ({
       departmentId: choice.departmentId,
       departmentName: choice.department.name,

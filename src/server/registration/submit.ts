@@ -314,18 +314,6 @@ export async function submitRegistration(input: {
         );
       }
 
-      // "Guidebook, ketentuan, dan pembayaran": payload.payment.code is
-      // guaranteed non-null and digit-shaped by validateRegistrationPayload
-      // above (payload is the already-validated data, not raw input), but
-      // its VALUE is still client-supplied - amount is always recomputed
-      // here from PAYMENT_BASE_AMOUNT + the numeric code, never trusted
-      // from payload.payment.amount. Uniqueness of the code itself within
-      // this period is enforced by the DB unique constraint
-      // (periodId, paymentCode) on candidate.create() below, not checked
-      // here - there is no separate "reservation" table to check against.
-      const paymentCode = payload.payment.code!;
-      const paymentAmount = environment.PAYMENT_BASE_AMOUNT + Number(paymentCode);
-
       // Phase C - "Field Khusus Per Birdep" (ADR-043): BADMEDBRND
       // legislatif shares Medbrand eksekutif's exact same portfolio
       // requirement - both authoritative checks against fresh DB data.
@@ -384,8 +372,6 @@ export async function submitRegistration(input: {
           email: payload.identity.email.trim(),
           normalizedEmail: normalizeEmail(payload.identity.email),
           domicile: payload.identity.domicile.trim(),
-          paymentCode,
-          paymentAmount,
           essayOrgExperience: payload.essays.organizationExperience.trim(),
           essayContribution: payload.essays.contribution.trim(),
           essayBalance: payload.essays.academicBalance.trim(),
@@ -517,17 +503,8 @@ export async function submitRegistration(input: {
     } catch (error) {
       if (error instanceof RegistrationSubmissionError) throw error;
       if (isUniqueViolation(error)) {
-        // Same blanket P2002 handling this codebase already uses
-        // elsewhere (lock.ts/broadcast.ts/accounts.ts/selection.ts) rather
-        // than inspecting error.meta.target for the specific constraint -
-        // the message now covers all three unique constraints candidates
-        // can hit (NIM, email, or the new (periodId, paymentCode) pair
-        // from "Guidebook, ketentuan, dan pembayaran") since a payment
-        // code collision is a real, if rare, possibility (e.g. a stale
-        // draft resubmitted after the code it carried was already used by
-        // another submission).
         throw new RegistrationSubmissionError(
-          "NIM, email, atau kode pembayaran sudah terdaftar pada periode ini.",
+          "NIM atau email sudah terdaftar pada periode ini.",
           409,
           "DUPLICATE_CANDIDATE",
         );

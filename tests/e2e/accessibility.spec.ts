@@ -34,8 +34,8 @@ test.beforeAll(async () => {
   candidateId = randomUUID();
   await pool.query(
     `INSERT INTO candidates
-      (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgram", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", track, "paymentCode", "paymentAmount")
-     VALUES ($1, $2, 'REG-A11Y01', 'Kandidat Aksesibilitas', 'NIM-A11Y01', 'NIM-A11Y01', 63, 2026, 'Kelas AX', $3, '081200000002', 'a11y-candidate@example.test', 'a11y-candidate@example.test', 'Kota Fixture', 'Sintetis', 'Sintetis', 'Sintetis', 'SUBMITTED', now(), now(), 'EXECUTIVE', '001', 15001)
+      (id, "periodId", "registrationNumber", name, nim, "normalizedNim", "cohortCode", "entryYear", "className", "studyProgram", phone, email, "normalizedEmail", domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", track)
+     VALUES ($1, $2, 'REG-A11Y01', 'Kandidat Aksesibilitas', 'NIM-A11Y01', 'NIM-A11Y01', 63, 2026, 'Kelas AX', $3, '081200000002', 'a11y-candidate@example.test', 'a11y-candidate@example.test', 'Kota Fixture', 'Sintetis', 'Sintetis', 'Sintetis', 'SUBMITTED', now(), now(), 'EXECUTIVE')
      ON CONFLICT (id) DO NOTHING`,
     [candidateId, E2E_PERIOD_ID, "Program Studi Sintetis E2E"],
   );

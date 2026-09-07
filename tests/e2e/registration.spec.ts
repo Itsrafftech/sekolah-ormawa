@@ -114,9 +114,10 @@ test("happy path non-Medbrand menyimpan kandidat dan menampilkan bukti", async (
   await expect(page.getByText("Upload privat tervalidasi.")).toBeVisible();
   await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
 
-  // "Guidebook, ketentuan, dan pembayaran": new Payment step - kode unik
-  // diambil otomatis dari server saat step ini dimasuki.
-  await expect(page.getByText(/Kode unik kamu/u)).toBeVisible();
+  // "Perubahan Sistem Pembayaran" (ADR-048): Payment step sekarang
+  // menampilkan nominal tetap - tidak ada lagi kode unik yang diambil
+  // dari server.
+  await expect(page.getByText(/Biaya Pendaftaran: Rp/u)).toBeVisible();
   await page.getByLabel("Pilih file Bukti Pembayaran").setInputFiles({ name: "bukti-bayar-sintetis.pdf", mimeType: "application/pdf", buffer: pdf });
   await expect(page.getByText("Upload privat tervalidasi.")).toBeVisible();
   await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
@@ -161,8 +162,8 @@ test("Medbrand Pilihan 2 memunculkan portofolio dan menerima URL HTTPS", async (
   await expect(page.getByText("Upload privat tervalidasi.")).toBeVisible();
   await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
 
-  // "Guidebook, ketentuan, dan pembayaran": new Payment step.
-  await expect(page.getByText(/Kode unik kamu/u)).toBeVisible();
+  // "Perubahan Sistem Pembayaran" (ADR-048): Payment step - nominal tetap.
+  await expect(page.getByText(/Biaya Pendaftaran: Rp/u)).toBeVisible();
   await page.getByLabel("Pilih file Bukti Pembayaran").setInputFiles({ name: "bukti-bayar-medbrand.pdf", mimeType: "application/pdf", buffer: pdf });
   await expect(page.getByText("Upload privat tervalidasi.")).toBeVisible();
   await page.getByRole("button", { name: /Simpan & lanjut/ }).click();

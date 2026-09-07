@@ -150,12 +150,6 @@ export type CandidateDetail = {
   essayBalance: string;
   status: "SUBMITTED" | "LOCKED" | "WITHDRAWN" | "ARCHIVED";
   submittedAt: string;
-  // "Guidebook, ketentuan, dan pembayaran": always visible to whichever PJ
-  // (P1 or P2) can already see this candidate at all, and to Super Admin -
-  // same visibility as the generic "Dokumen" card (CV/Photo/KTM/Follow
-  // Evidence), not gated to one specific Birdep like "Data Khusus Birdep".
-  paymentCode: string;
-  paymentAmount: number;
   choices: CandidateChoiceSummary[];
   uploads: CandidateUploadSummary[];
   supplemental: CandidateSupplementalSummary | null;

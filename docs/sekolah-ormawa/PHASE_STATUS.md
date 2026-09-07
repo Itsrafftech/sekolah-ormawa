@@ -1598,3 +1598,105 @@ Tiga perubahan pada form pendaftaran: (1) banner + checkbox wajib guidebook di S
 ## Batas fase
 
 Seluruh 9 langkah "Urutan pengerjaan" dan seluruh acceptance criteria sudah diimplementasikan dan didokumentasikan (ADR-047). Quality gate otomatis PENUH lolos (typecheck, lint, 88 unit test, 148 integration test, build). Verifikasi live browser selesai untuk Step 0-3; Step 4 ke atas tidak diverifikasi interaktif karena perubahan `.env` lokal yang Anda konfirmasi sengaja - digantikan test otomatis yang mencakup jalur server yang sama. Perubahan kode sudah ter-commit (bukan oleh saya) sebagai `77739ab`. Ini bukan phase baru sesuai instruksi Anda. Pekerjaan berhenti setelah laporan ini dan menunggu instruksi Anda.
+
+# Hasil UAT - Perubahan Sistem Pembayaran
+
+## Status
+
+PASS
+
+## Ringkasan hasil
+
+Membalik sebagian ADR-047 ("Guidebook, ketentuan, dan pembayaran"): kode unik pembayaran per pendaftar diganti total menjadi nominal tetap Rp 15.001 untuk semua pendaftar, sesuai instruksi eksplisit Anda. Seluruh 5 area di spek (database, API, form pendaftaran, dashboard PJ/Super Admin, validasi) sudah diubah, plus test dan dokumentasi disesuaikan penuh.
+
+**Database**: `Candidate.paymentCode`/`paymentAmount` dan `@@unique([periodId, paymentCode])` di-drop lewat migration baru (rollback-able, didokumentasikan lengkap di komentar migration.sql). `RecruitmentPeriod.paymentCodeSequence` (counter atomik ADR-047) ikut di-drop meski tidak eksplisit diminta di spek Anda - begitu endpoint penerbit kode dan pemakaiannya di `submit.ts` dihapus, counter itu jadi schema mati tanpa reader/writer. Ini satu-satunya deviasi dari instruksi literal, didokumentasikan di ADR-048.
+
+**API**: `GET /api/registration/payment-code` dihapus total (file + direktori). Logika generate kode di `submit.ts` dihapus, `candidate.create()` tidak lagi menulis `paymentCode`/`paymentAmount`.
+
+**Form pendaftaran (Step 06 Pembayaran)**: tampilan "Kode unik kamu"/"Total: Rp 15.000 + kode unik" diganti teks tetap "Biaya Pendaftaran: Rp 15.001" (dari `config.paymentAmount`, bukan hardcode - env-driven seperti sebelumnya). Instruksi cara pembayaran diganti persis wording Anda (Gopay 081273239606 a.n. Farhanah Nurul Lathifah / QRIS, nominal WAJIB tepat Rp 15.001, screenshot, upload). Semua state/effect terkait fetch kode (`fetching`, `fetchError`, `requestedRef`, `useEffect` fetch) dihapus - step ini sekarang render statis tanpa panggilan API sama sekali. Review & Submit (Step 07) juga dibersihkan dari `ReviewItem` "Kode unik"/"Total dibayar" - tidak eksplisit diminta di spek tapi konsisten dengan semangat "hapus tampilan kode unik" di seluruh permukaan produk.
+
+**Dashboard PJ/Super Admin**: kartu "Pembayaran" di halaman detail kandidat sekarang hanya menampilkan link bukti pembayaran (atau "Belum ada bukti pembayaran") - tampilan kode unik dan total dihapus, `formatRupiah` helper yang sudah tidak terpakai ikut dihapus dari file itu.
+
+**Validasi**: pengecekan `payload.payment.code` dihapus dari `validation.ts` - hanya `uploads.paymentEvidence` yang masih wajib. `RateLimitScope` kehilangan entri `REGISTRATION_PAYMENT_CODE` (scope mati setelah endpointnya hilang).
+
+## Perubahan utama
+
+| File/modul | Tujuan perubahan |
+|---|---|
+| `prisma/schema.prisma` | Drop `Candidate.paymentCode`/`paymentAmount` + unique index; drop `RecruitmentPeriod.paymentCodeSequence`; update doc comment `UploadKind.PAYMENT_EVIDENCE` |
+| `prisma/migrations/20260908080000_revert_payment_to_fixed_amount/` | Migration baru: drop 2 kolom + 1 index + 1 counter; rollback didokumentasikan lengkap termasuk cara backfill jika suatu saat perlu dikembalikan |
+| `docs/sekolah-ormawa/DECISIONS.md` | ADR-048 (supersede sebagian ADR-047) - dokumentasi lengkap keputusan pembalikan, deviasi (`paymentCodeSequence`), dan data hilang |
+| `docs/sekolah-ormawa/RUNBOOK.md` | Migration list bagian 4 bertambah 1 baris (migration ke-15) |
+| `src/lib/env.ts`, `.env.example` | `PAYMENT_BASE_AMOUNT` diganti `PAYMENT_AMOUNT` (default 15001, semantik berubah dari "basis + kode" jadi "nominal final") |
+| `src/app/api/registration/payment-code/route.ts` | Dihapus total (file + direktori kosong) |
+| `src/server/auth/rate-limit.ts` | Scope `REGISTRATION_PAYMENT_CODE` dihapus dari `RateLimitScope` |
+| `src/features/registration/contracts.ts` | Draft schema versi 5 ke 6; field `payment{code,amount}` dihapus dari `RegistrationPayload`; `paymentBaseAmount` diganti `paymentAmount` di config |
+| `src/features/registration/validation.ts` | `paymentCodeSchema` + field `payment` dihapus dari `payloadSchema`; validasi kode dihapus, bukti pembayaran tetap wajib |
+| `src/server/registration/config.ts` | Config `paymentBaseAmount` diganti `paymentAmount` |
+| `src/server/registration/submit.ts` | Logika hitung `paymentCode`/`paymentAmount` dihapus; `candidate.create()` tidak lagi menulis kedua kolom; pesan unique-violation dikembalikan ke versi pra-ADR-047 |
+| `src/features/candidates/contracts.ts`, `src/server/candidates/detail.ts` | `paymentCode`/`paymentAmount` dihapus dari `CandidateDetail` dan hasil `getCandidateDetail()` |
+| `src/app/admin/dashboard/kandidat/[id]/page.tsx` | Card "Pembayaran" disederhanakan (hanya link bukti); `formatRupiah` helper dihapus |
+| `src/components/registration/registration-form.tsx` | `DraftPayload`/`emptyPayload`/draft-save effect kehilangan field `payment`; `validateStep` Step 6 disederhanakan; `PaymentStep` ditulis ulang total (statis, tanpa fetch); `ReviewStep` kehilangan 2 `ReviewItem` |
+| `tests/unit/registration-validation.test.ts` | Fixture config/payload disesuaikan; test kode dihapus, test bukti pembayaran disederhanakan |
+| `tests/integration/registration-flow.test.ts` | Counter kode + field `payment` dihapus dari `validPayload()`; test penyimpanan kode dan test duplikat kode dihapus (kolom tidak ada lagi); test guidebook/bukti disederhanakan |
+| `tests/integration/load-performance.test.ts` | Counter kode + field `payment` dihapus dari `buildPayload()` |
+| `tests/integration/selection-decision.test.ts`, `candidate-lock.test.ts`, `broadcast.test.ts`, `candidate-admin.test.ts`, `candidate-dashboard.test.ts`, `candidate-export.test.ts`, `authorization-matrix.test.ts`, `database-constraints.test.ts`; `tests/e2e/responsive.spec.ts`, `accessibility.spec.ts` | Kolom `paymentCode`/`paymentAmount` dan module-level counter dihapus dari fixture raw-SQL `INSERT INTO candidates` |
+| `tests/e2e/registration.spec.ts` | Assertion "Kode unik kamu" diganti "Biaya Pendaftaran: Rp" di 2 tempat |
+
+## Acceptance criteria
+
+| Kriteria | Status | Bukti |
+|---|---|---|
+| Kolom `paymentCode`/`paymentAmount` dan unique index dihapus dari `Candidate` | PASS | Migration diterapkan ke dev+test, `prisma migrate diff --exit-code` nol drift |
+| Migration bisa rollback | PASS | SQL rollback lengkap didokumentasikan di komentar migration (termasuk catatan backfill jika suatu saat perlu dikembalikan) |
+| Tidak perlu backfill | PASS | Migration murni drop kolom/index, tidak ada penambahan kolom |
+| `GET /api/registrations/payment-code` dihapus | PASS | File dan direktori `src/app/api/registration/payment-code/` dihapus; route hilang dari daftar route hasil `npm run build` |
+| Logika generate kode dihapus dari submit | PASS | `submit.ts` tidak lagi menghitung/menulis `paymentCode`/`paymentAmount` |
+| Step Pembayaran menampilkan teks tetap "Biaya Pendaftaran: Rp 15.001" | PASS | `PaymentStep` ditulis ulang, `config.paymentAmount` (default env 15001) |
+| Instruksi cara pembayaran sesuai wording baru | PASS | 4 poin persis teks yang Anda berikan |
+| Dashboard PJ/Super Admin: kode unik dan total bayar dihapus, bukti pembayaran tetap tampil | PASS | Card "Pembayaran" hanya berisi link bukti/pesan "Belum ada bukti pembayaran" |
+| Validasi `paymentCode` dihapus, bukti pembayaran tetap wajib | PASS | `validation.ts` hanya cek `uploads.paymentEvidence`; unit+integration test menegaskan |
+| Typecheck, lint, unit test, integration test, build PASS | PASS | Lihat tabel verifikasi |
+
+## Verifikasi yang dijalankan
+
+| Perintah/skenario | Hasil |
+|---|---|
+| `npx prisma migrate deploy` (dev) + `migrate diff --exit-code` (dev+test) | PASS; nol drift |
+| `npx prisma generate` | PASS; Prisma Client 7.9.1 diregenerasi tanpa `paymentCode`/`paymentAmount` |
+| `npx tsc --noEmit` | PASS; 0 error (setelah membersihkan cache tipe route Next.js yang sempat basi menunjuk file route yang sudah dihapus) |
+| `npx eslint . --max-warnings 0` | PASS; 0 warning |
+| `npm run test` (unit) | PASS; 13 file, 88/88 (jumlah sama seperti sebelumnya - test kode dihapus tapi test yang sama disederhanakan, bukan ditambah/dikurangi jumlah blok test) |
+| `npm run test:integration` | PASS; 15 file, 147/147 (turun dari 148 - 1 test dihapus total: "menolak submit kedua dengan kode pembayaran yang sudah dipakai", karena kolomnya sudah tidak ada) |
+| `npm run build` (dengan env dummy MinIO/Resend) | PASS; `/api/registration/payment-code` terkonfirmasi hilang dari daftar route |
+| Grep sweep penuh `src/`, `tests/`, `docs/` untuk sisa referensi kode pembayaran | PASS; nol referensi tersisa di luar migration lama (arsip historis, disengaja tidak diubah) dan ADR/RUNBOOK yang memang mendokumentasikan riwayat |
+
+## Migration dan konfigurasi
+
+- Migration baru: `20260908080000_revert_payment_to_fixed_amount` - diterapkan ke dev+test, nol drift dikonfirmasi. Belum diterapkan ke production.
+- Env var `PAYMENT_BASE_AMOUNT` diganti nama menjadi `PAYMENT_AMOUNT` (default berubah dari 15000 menjadi 15001) di `src/lib/env.ts` dan `.env.example`. `.env` lokal Anda tidak pernah menyetel `PAYMENT_BASE_AMOUNT` secara eksplisit (mengandalkan default schema), jadi tidak ada edit `.env` yang diperlukan - perlu ditambahkan manual di server production jika Anda ingin nominal berbeda dari default 15001, atau dibiarkan memakai default.
+- Tidak ada commit yang saya jalankan (konsisten dengan "commit hanya jika diminta") - seluruh perubahan masih di working tree, unstaged.
+
+## Risiko, asumsi, dan technical debt
+
+- Data hilang (preseden sama seperti ADR-045): 8 baris kandidat fixture dev yang sudah ada kehilangan `paymentCode` (001-008) dan `paymentAmount` (15001-15008) secara permanen - tidak ada migrasi yang bermakna karena skema baru tidak punya field per-kandidat sama sekali. Diterima karena submission production belum pernah diaktifkan (ADR-018) dan seluruh 8 baris adalah data fixture sintetis.
+- Deviasi dari instruksi literal: `RecruitmentPeriod.paymentCodeSequence` di-drop meski tidak diminta eksplisit di 6 poin perubahan Anda - alasan: begitu endpoint dan pemakaiannya hilang, kolom itu jadi schema mati tanpa pembaca/penulis. Didokumentasikan penuh di ADR-048.
+- `REGISTRATION_DRAFT_SCHEMA_VERSION` dinaikkan dari 5 ke 6: draft pendaftaran lama (localStorage) yang masih membawa bentuk `payload.payment.code`/`amount` akan dibuang otomatis saat dibuka ulang (bukan error, bukan crash) - konsisten dengan pola ADR-040 saat field IPK dihapus.
+- Tidak ada verifikasi live-browser interaktif di sesi ini (tidak diminta di spek Anda, dan seluruh alur pembayaran sudah tercakup end-to-end lewat 147 integration test yang menembak `submitRegistration()` sungguhan terhadap Postgres nyata) - murni pertimbangan cakupan test otomatis vs waktu, bukan blocker.
+
+## Cara saya memeriksa hasil
+
+1. `npx prisma migrate diff --exit-code` terhadap dev+test setelah apply - nol drift.
+2. `npx tsc --noEmit && npx eslint . --max-warnings 0 && npm run test && npm run test:integration && npm run build`.
+3. Grep sweep berulang di `src/`, `tests/`, `docs/` setelah setiap file diedit untuk memastikan tidak ada referensi kode pembayaran lama yang terlewat.
+4. Membaca ulang `submit.ts`/`validation.ts`/`detail.ts`/`page.tsx`/`registration-form.tsx` untuk memastikan tidak ada sisa logika kode unik di jalur server maupun client.
+5. Memeriksa daftar route hasil `npm run build` untuk memastikan `/api/registration/payment-code` benar-benar hilang.
+
+## Keputusan yang dibutuhkan
+
+1. Tidak ada blocker. ADR-048 mendokumentasikan satu-satunya deviasi dari instruksi literal (drop `paymentCodeSequence`) untuk ditinjau bila perlu.
+2. Jika Anda ingin nominal Rp 15.001 berbeda di production, tambahkan `PAYMENT_AMOUNT=<nominal>` ke `.env` server - tanpa itu, default 15001 yang berlaku.
+
+## Batas fase
+
+Seluruh 6 poin perubahan di spek Anda (database, API, form pendaftaran, dashboard PJ/Super Admin, validasi, quality gate) sudah diimplementasikan dan didokumentasikan (ADR-048). Quality gate otomatis penuh lolos (typecheck, lint, 88 unit test, 147 integration test, build). Tidak ada commit yang saya jalankan. Ini bukan phase baru sesuai instruksi Anda. Pekerjaan berhenti setelah laporan ini dan menunggu persetujuan Anda.

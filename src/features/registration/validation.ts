@@ -54,16 +54,6 @@ const uploadReferenceSchema = z.object({
   mimeType: z.string().min(1).max(127),
 });
 
-// "Guidebook, ketentuan, dan pembayaran": the code itself is assigned by
-// GET /api/registration/payment-code, not chosen/typed by the registrant -
-// this only checks the SHAPE of whatever the client echoes back (digits
-// only, at least 3 - not capped at exactly 3 since a period past 999
-// registrants still issues a longer, still-valid code, see that route's
-// comment). Uniqueness/correctness is enforced by the DB unique
-// constraint (periodId, paymentCode) and by submit.ts recomputing amount
-// server-side - this schema check alone is not a security boundary.
-const paymentCodeSchema = z.string().trim().regex(/^\d{3,}$/u, "Kode pembayaran tidak valid.");
-
 // Phase C - "Field Khusus Per Birdep". Format valid: 4 huruf, kombinasi
 // I/E + N/S + T/F + J/P (16 tipe MBTI). Normalisasi uppercase terjadi di
 // sini juga (bukan cuma di UI) karena payload tidak boleh dipercaya
@@ -114,16 +104,6 @@ const payloadSchema = z.object({
     organizationExperience: z.string().trim(),
     contribution: z.string().trim(),
     academicBalance: z.string().trim(),
-  }),
-  // "Guidebook, ketentuan, dan pembayaran": `code` nullable at the schema
-  // level (the client hasn't reached the Payment step yet on early
-  // steps/drafts) - required non-null by the business-logic section
-  // below, which is what actually runs at submit time. `amount` is
-  // accepted but never trusted - submit.ts always recomputes it from
-  // `code` alone server-side.
-  payment: z.object({
-    code: paymentCodeSchema.nullable(),
-    amount: z.number().int().positive().nullable(),
   }),
   // Phase C - "Field Khusus Per Birdep". All optional at the schema level
   // (requiredness depends on which Birdep was chosen - checked below,
@@ -232,10 +212,8 @@ export function validateRegistrationPayload(
   if (!data.uploads.followEvidence) {
     errors["uploads.followEvidence"] = "Bukti follow dan share (PDF) wajib diunggah.";
   }
-  // "Guidebook, ketentuan, dan pembayaran": required for every registrant.
-  if (!data.payment.code) {
-    errors["payment.code"] = "Kode pembayaran belum dibuat. Kembali ke langkah Pembayaran.";
-  }
+  // "Perubahan Sistem Pembayaran": tidak ada lagi kode unik untuk
+  // divalidasi - hanya bukti pembayaran yang tetap wajib.
   if (!data.uploads.paymentEvidence) {
     errors["uploads.paymentEvidence"] = "Bukti pembayaran wajib diunggah.";
   }

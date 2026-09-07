@@ -60,25 +60,17 @@ async function insertFoundation(client: PoolClient) {
   return { departmentA, departmentB, periodId, studyProgramId };
 }
 
-// "Guidebook, ketentuan, dan pembayaran": periodId+paymentCode is unique -
-// a module-level counter gives every insertCandidate() call in this file
-// a distinct code, including the two-calls-per-test cases below (both
-// awaited sequentially against the same fixture, never concurrent).
-let paymentCodeCounter = 0;
-
 async function insertCandidate(
   client: PoolClient,
   fixture: Awaited<ReturnType<typeof insertFoundation>>,
   overrides: { normalizedNim?: string; normalizedEmail?: string; gpa?: number } = {},
 ) {
   const candidateId = randomUUID();
-  paymentCodeCounter += 1;
-  const paymentCode = String(paymentCodeCounter).padStart(3, "0");
 
   await client.query(
     `INSERT INTO candidates
-      (id, "periodId", name, nim, "normalizedNim", "cohortCode", "className", "studyProgram", phone, email, "normalizedEmail", gpa, domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", version, track, "paymentCode", "paymentAmount")
-     VALUES ($1, $2, 'Kandidat Fixture', 'I-FIXTURE', $3, 63, 'A', $4, '+628000000000', 'fixture@example.test', $5, $6, 'Bogor', 'Fixture', 'Fixture', 'Fixture', 'SUBMITTED', now(), now(), 0, 'EXECUTIVE', $7, $8)`,
+      (id, "periodId", name, nim, "normalizedNim", "cohortCode", "className", "studyProgram", phone, email, "normalizedEmail", gpa, domicile, "essayOrgExperience", "essayContribution", "essayBalance", status, "submittedAt", "updatedAt", version, track)
+     VALUES ($1, $2, 'Kandidat Fixture', 'I-FIXTURE', $3, 63, 'A', $4, '+628000000000', 'fixture@example.test', $5, $6, 'Bogor', 'Fixture', 'Fixture', 'Fixture', 'SUBMITTED', now(), now(), 0, 'EXECUTIVE')`,
     [
       candidateId,
       fixture.periodId,
@@ -90,8 +82,6 @@ async function insertCandidate(
       // is the realistic default here and the constraint test below still
       // passes an explicit override to exercise the CHECK.
       overrides.gpa ?? null,
-      paymentCode,
-      15000 + Number(paymentCode),
     ],
   );
 

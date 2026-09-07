@@ -114,11 +114,6 @@ function departmentAllowsBudgetPlan(department: PublicDepartmentOption | undefin
   return department?.code === "KOMANGG";
 }
 
-<<<<<<< HEAD
-=======
-<<<<<<< Updated upstream
-type DraftPayload = Pick<RegistrationPayload, "identity" | "choices" | "essays" | "track" | "departmentFields">;
-=======
 // Penugasan khusus Senbud ("Calon Rockidz"): informasional, bukan field
 // submit - pendaftar SENBUD harus menyiapkan portofolio (opsional) dan
 // video kreatif (wajib) di luar form. Ditampilkan di Step 2 (tag opsi),
@@ -127,17 +122,7 @@ function departmentHasSenbudPenugasan(department: PublicDepartmentOption | undef
   return department?.code === "SENBUD";
 }
 
->>>>>>> tanss
-// "Guidebook, ketentuan, dan pembayaran": `payment` is included here
-// (unlike `uploads`, which is deliberately never persisted to
-// localStorage - Phase 3 decision, ADR-019) because it holds only a text
-// code + amount, not a file/upload reference - same reasoning that
-// already applies to every other field in this Pick.
-type DraftPayload = Pick<RegistrationPayload, "identity" | "choices" | "essays" | "track" | "guidebookAcknowledged" | "payment" | "departmentFields">;
-<<<<<<< HEAD
-=======
->>>>>>> Stashed changes
->>>>>>> tanss
+type DraftPayload = Pick<RegistrationPayload, "identity" | "choices" | "essays" | "track" | "guidebookAcknowledged" | "departmentFields">;
 
 type SavedDraft = {
   periodId: string;
@@ -170,9 +155,6 @@ function emptyPayload(config: RegistrationFormConfig): RegistrationPayload {
     ],
     uploads: { cv: null, photo: null, studentCard: null, followEvidence: null, paymentEvidence: null },
     essays: { organizationExperience: "", contribution: "", academicBalance: "" },
-    // "Guidebook, ketentuan, dan pembayaran": null until PaymentStep fetches
-    // it once from GET /api/registration/payment-code.
-    payment: { code: null, amount: null },
     // Phase C - "Field Khusus Per Birdep": empty object, not per-field
     // undefined literals - all keys stay optional/absent until the
     // relevant Birdep is chosen and the candidate fills them in.
@@ -282,11 +264,6 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
         identity: current.identity,
         choices: current.choices,
         essays: current.essays,
-        // "Guidebook, ketentuan, dan pembayaran": persisted so the code
-        // assigned by GET /api/registration/payment-code is never
-        // re-issued on reload/revisit - PaymentStep only fetches a new one
-        // when this is still null.
-        payment: current.payment,
         // Phase C - "Field Khusus Per Birdep", extended Phase D (ADR-045)
         // with portfolioUrl/budgetPlanUrl: text values only ("Draft
         // localStorage menyimpan nilai text/radio, tidak menyimpan file")
@@ -421,11 +398,9 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
         errors["uploads.followEvidence"] = "Bukti follow dan share (PDF) wajib diunggah.";
       }
     }
-    // "Guidebook, ketentuan, dan pembayaran": new step.
+    // "Perubahan Sistem Pembayaran": nominal tetap untuk semua pendaftar,
+    // tidak ada lagi kode unik untuk divalidasi.
     if (targetStep === 6) {
-      if (!payload.payment.code) {
-        errors["payment.code"] = "Kode pembayaran belum dibuat. Muat ulang halaman ini.";
-      }
       if (!payload.uploads.paymentEvidence) {
         errors["uploads.paymentEvidence"] = "Bukti pembayaran wajib diunggah.";
       }
@@ -693,11 +668,6 @@ function TrackStep({ departmentsByTrack, errors, payload, chooseTrack, mutate }:
     mutate((current) => ({ ...current, guidebookAcknowledged: value }));
   return (
     <StepFrame number="00" eyebrow="Sebelum memilih Birdep" title="Pilih jalur pendaftaran">
-<<<<<<< HEAD
-=======
-<<<<<<< Updated upstream
-=======
->>>>>>> tanss
       {/* "Guidebook, ketentuan, dan pembayaran": prominent banner + wajib
           checkbox, rendered before the Jalur picker per spec. */}
       <div className="guidebook-banner">
@@ -706,29 +676,19 @@ function TrackStep({ departmentsByTrack, errors, payload, chooseTrack, mutate }:
         </a>
         <label className={`guidebook-banner__checkbox${errors.guidebookAcknowledged ? " has-error" : ""}`} id={fieldId("guidebookAcknowledged")}>
           <input
-<<<<<<< HEAD
-=======
             aria-describedby={errors.guidebookAcknowledged ? `${fieldId("guidebookAcknowledged")}-error` : undefined}
             aria-invalid={errors.guidebookAcknowledged ? true : undefined}
->>>>>>> tanss
             checked={payload.guidebookAcknowledged ?? false}
             onChange={(event) => setGuidebookAcknowledged(event.target.checked)}
             type="checkbox"
           />
           <span>Saya sudah membaca guidebook dan ketentuan pendaftaran.</span>
         </label>
-<<<<<<< HEAD
-        {errors.guidebookAcknowledged ? <p className="field-error">{errors.guidebookAcknowledged}</p> : null}
-      </div>
-
-=======
         {errors.guidebookAcknowledged ? (
           <p className="field-error" id={`${fieldId("guidebookAcknowledged")}-error`}>{errors.guidebookAcknowledged}</p>
         ) : null}
       </div>
 
->>>>>>> Stashed changes
->>>>>>> tanss
       <fieldset className="track-picker" id={fieldId("track")}>
         <legend className="sr-only">Jalur pendaftaran</legend>
         <div className="track-picker__grid">
@@ -993,64 +953,6 @@ function UploadField({ config, id, label, accept, detail, error, kind, value, on
   );
 }
 
-<<<<<<< HEAD
-// UAT feedback - "persyaratan follow dan share". Applies to every
-// registrant regardless of track/department, so unlike the Phase C/D
-// department-triggered fields this step is never conditionally hidden -
-// it always renders between Dokumen (Step 3) and Esai & Portofolio
-// (Step 5).
-function FollowEvidenceStep({ config, errors, payload, mutate }: StepProps) {
-  const setUpload = (upload: UploadReference | null) =>
-    mutate((current) => ({ ...current, uploads: { ...current.uploads, followEvidence: upload } }));
-  return (
-    <StepFrame number="05" eyebrow="Wajib untuk semua pendaftar" title="Bukti Follow dan Share">
-      <div className="follow-evidence-instructions">
-        <p>Sebelum mendaftar, pastikan kamu sudah:</p>
-        <ol>
-          <li>Follow @ormawaeksekutifpku dan seluruh akun Instagram Birdep Eksekutif PKU (11 akun — cari sendiri di Instagram)</li>
-          <li>Follow @ormawalegislatifpku</li>
-          <li>Share jarkoman Sekolah Ormawa ke 3 grup WhatsApp</li>
-          <li>Share poster Sekolah Ormawa ke story Instagram pribadi kamu</li>
-        </ol>
-        <p>Kumpulkan semua screenshot bukti menjadi 1 file PDF dengan urutan:</p>
-        <ol>
-          <li>Screenshot follow @ormawaeksekutifpku</li>
-          <li>Screenshot follow 11 akun Birdep Eksekutif (boleh beberapa screenshot)</li>
-          <li>Screenshot follow @ormawalegislatifpku</li>
-          <li>Screenshot share jarkoman ke 3 grup WhatsApp</li>
-          <li>Screenshot story Instagram poster</li>
-        </ol>
-        <p>
-          Format nama file PDF wajib:
-          <br />
-          <code>[Pilihan Birdep/Kombad 1]_[Nama Lengkap]_bukti follow dan share.pdf</code>
-        </p>
-        <p className="follow-evidence-instructions__example">
-          Contoh: <code>PSDM_Muhammad Rafi Al Arifi_bukti follow dan share.pdf</code>
-        </p>
-      </div>
-      <div className="upload-grid">
-        <UploadField
-          config={config}
-          id="uploads.followEvidence"
-          label="Bukti Follow dan Share (PDF)"
-          accept=".pdf,application/pdf"
-          detail="Wajib · PDF · maksimum 10 MB"
-          error={errors["uploads.followEvidence"]}
-          kind="FOLLOW_EVIDENCE"
-          value={payload.uploads.followEvidence}
-          onChange={setUpload}
-        />
-      </div>
-    </StepFrame>
-  );
-}
-
-=======
-<<<<<<< Updated upstream
->>>>>>> tanss
-function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allowsBudgetPlan, mutate }: StepProps & {
-=======
 // UAT feedback - "persyaratan follow dan share". Applies to every
 // registrant regardless of track/department, so unlike the Phase C/D
 // department-triggered fields this step is never conditionally hidden -
@@ -1104,7 +1006,6 @@ function FollowEvidenceStep({ config, errors, payload, mutate }: StepProps) {
 }
 
 function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allowsBudgetPlan, requiresSenbudPenugasan, mutate }: StepProps & {
->>>>>>> Stashed changes
   requiresPortfolio: boolean;
   allowsBudgetPlan: boolean;
   requiresSenbudPenugasan: boolean;
@@ -1211,51 +1112,14 @@ function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allows
   );
 }
 
-<<<<<<< HEAD
-// "Guidebook, ketentuan, dan pembayaran": always renders (not conditional
+// "Perubahan Sistem Pembayaran" (ADR-048): always renders (not conditional
 // on track/department, same as FollowEvidenceStep) between Bukti Follow
-// dan Share (Step 5) and Review & Submit (Step 7). The payment code is
-// fetched exactly once - the effect below only calls the API when
-// `payload.payment.code` is still null, and the result is immediately
-// written back into payload (persisted to the localStorage draft by the
-// parent's existing draft-save effect), so revisiting this step or
-// reloading the page never re-issues a new code.
+// dan Share (Step 5) and Review & Submit (Step 7). Nominal tetap untuk
+// semua pendaftar - tidak ada lagi kode unik yang perlu diambil dari
+// server, jadi step ini tidak butuh efek/fetch sama sekali.
 function PaymentStep({ config, errors, payload, mutate }: StepProps) {
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [fetching, setFetching] = useState(false);
   const [qrisFailed, setQrisFailed] = useState(false);
   const [copied, setCopied] = useState(false);
-  const requestedRef = useRef(false);
-
-  function fetchCode() {
-    requestedRef.current = true;
-    setFetching(true);
-    setFetchError(null);
-    fetch(`/api/registration/payment-code?periodId=${encodeURIComponent(config.periodId)}`)
-      .then(async (response) => {
-        const result = await response.json() as { code?: string; amount?: number; error?: string };
-        if (!response.ok || !result.code || !result.amount) {
-          throw new Error(result.error ?? "Gagal membuat kode pembayaran.");
-        }
-        mutate((current) => ({ ...current, payment: { code: result.code!, amount: result.amount! } }));
-      })
-      .catch((error: unknown) => {
-        requestedRef.current = false;
-        setFetchError(error instanceof Error ? error.message : "Gagal membuat kode pembayaran.");
-      })
-      .finally(() => setFetching(false));
-  }
-
-  useEffect(() => {
-    if (payload.payment.code || requestedRef.current) return;
-    fetchCode();
-    // Runs once per mount (guarded by requestedRef + the payload.payment.code
-    // check above) - config.periodId is stable for the life of this form,
-    // fetchCode is a plain function recreated each render and intentionally
-    // excluded so this effect doesn't re-run on every keystroke elsewhere
-    // in the form.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const setEvidence = (upload: UploadReference | null) =>
     mutate((current) => ({ ...current, uploads: { ...current.uploads, paymentEvidence: upload } }));
@@ -1269,30 +1133,8 @@ function PaymentStep({ config, errors, payload, mutate }: StepProps) {
 
   return (
     <StepFrame number="06" eyebrow="Wajib untuk semua pendaftar" title="Pembayaran">
-      <div className="payment-info-box" id={fieldId("payment.code")}>
-        <h3>Biaya Pendaftaran Sekolah Ormawa</h3>
-        {fetching ? <p>Membuat kode unik kamu...</p> : null}
-        {fetchError ? (
-          <div className="payment-info-box__error">
-            <p className="field-error">{fetchError}</p>
-            <button type="button" className="button button--outline" onClick={fetchCode}>
-              Coba lagi
-            </button>
-          </div>
-        ) : null}
-        {payload.payment.code ? (
-          <>
-            <p>{formatRupiah(config.paymentBaseAmount)} + kode unik kamu</p>
-            <dl className="payment-info-box__figures">
-              <div><dt>Kode unik kamu</dt><dd>{payload.payment.code}</dd></div>
-              <div><dt>Total yang harus dibayar</dt><dd className="payment-info-box__total">{formatRupiah(payload.payment.amount ?? config.paymentBaseAmount)}</dd></div>
-            </dl>
-            <p className="payment-info-box__example">
-              Contoh: jika kode unik {payload.payment.code}, bayar {formatRupiah(config.paymentBaseAmount + Number(payload.payment.code))}.
-            </p>
-          </>
-        ) : null}
-        {errors["payment.code"] ? <p className="field-error">{errors["payment.code"]}</p> : null}
+      <div className="payment-info-box">
+        <h3>Biaya Pendaftaran: {formatRupiah(config.paymentAmount)}</h3>
       </div>
 
       <div className="payment-methods">
@@ -1321,144 +1163,7 @@ function PaymentStep({ config, errors, payload, mutate }: StepProps) {
         <p>Cara pembayaran:</p>
         <ol>
           <li>Transfer via Gopay ke {GOPAY_NUMBER} (a.n. {GOPAY_NAME}) atau scan QRIS</li>
-          <li>Nominal WAJIB sesuai total di atas (Rp {config.paymentBaseAmount.toLocaleString("id-ID")} + kode unik)</li>
-          <li>Screenshot bukti pembayaran</li>
-          <li>Upload di bawah ini</li>
-        </ol>
-      </div>
-
-      <div className="upload-grid">
-        <UploadField
-          config={config}
-          id="uploads.paymentEvidence"
-          label="Bukti Pembayaran"
-          accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
-          detail="Wajib · JPG/PNG/PDF · maksimum 5 MB"
-          error={errors["uploads.paymentEvidence"]}
-          kind="PAYMENT_EVIDENCE"
-          value={payload.uploads.paymentEvidence}
-          onChange={setEvidence}
-        />
-      </div>
-    </StepFrame>
-  );
-}
-
-=======
-<<<<<<< Updated upstream
->>>>>>> tanss
-function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortfolio, requiresMbti, requiresAdkesmahFocus, allowsBudgetPlan, mutate }: StepProps & {
-=======
-// "Guidebook, ketentuan, dan pembayaran": always renders (not conditional
-// on track/department, same as FollowEvidenceStep) between Bukti Follow
-// dan Share (Step 5) and Review & Submit (Step 7). The payment code is
-// fetched exactly once - the effect below only calls the API when
-// `payload.payment.code` is still null, and the result is immediately
-// written back into payload (persisted to the localStorage draft by the
-// parent's existing draft-save effect), so revisiting this step or
-// reloading the page never re-issues a new code.
-function PaymentStep({ config, errors, payload, mutate }: StepProps) {
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [fetching, setFetching] = useState(false);
-  const [qrisFailed, setQrisFailed] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const requestedRef = useRef(false);
-
-  function fetchCode() {
-    requestedRef.current = true;
-    setFetching(true);
-    setFetchError(null);
-    fetch(`/api/registration/payment-code?periodId=${encodeURIComponent(config.periodId)}`)
-      .then(async (response) => {
-        const result = await response.json() as { code?: string; amount?: number; error?: string };
-        if (!response.ok || !result.code || !result.amount) {
-          throw new Error(result.error ?? "Gagal membuat kode pembayaran.");
-        }
-        mutate((current) => ({ ...current, payment: { code: result.code!, amount: result.amount! } }));
-      })
-      .catch((error: unknown) => {
-        requestedRef.current = false;
-        setFetchError(error instanceof Error ? error.message : "Gagal membuat kode pembayaran.");
-      })
-      .finally(() => setFetching(false));
-  }
-
-  useEffect(() => {
-    if (payload.payment.code || requestedRef.current) return;
-    fetchCode();
-    // Runs once per mount (guarded by requestedRef + the payload.payment.code
-    // check above) - config.periodId is stable for the life of this form,
-    // fetchCode is a plain function recreated each render and intentionally
-    // excluded so this effect doesn't re-run on every keystroke elsewhere
-    // in the form.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const setEvidence = (upload: UploadReference | null) =>
-    mutate((current) => ({ ...current, uploads: { ...current.uploads, paymentEvidence: upload } }));
-
-  const copyGopayNumber = () => {
-    navigator.clipboard.writeText(GOPAY_NUMBER).then(() => {
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    }).catch(() => undefined);
-  };
-
-  return (
-    <StepFrame number="06" eyebrow="Wajib untuk semua pendaftar" title="Pembayaran">
-      <div className="payment-info-box" id={fieldId("payment.code")}>
-        <h3>Biaya Pendaftaran Sekolah Ormawa</h3>
-        {fetching ? <p>Membuat kode unik kamu...</p> : null}
-        {fetchError ? (
-          <div className="payment-info-box__error">
-            <p className="field-error">{fetchError}</p>
-            <button type="button" className="button button--outline" onClick={fetchCode}>
-              Coba lagi
-            </button>
-          </div>
-        ) : null}
-        {payload.payment.code ? (
-          <>
-            <p>{formatRupiah(config.paymentBaseAmount)} + kode unik kamu</p>
-            <dl className="payment-info-box__figures">
-              <div><dt>Kode unik kamu</dt><dd>{payload.payment.code}</dd></div>
-              <div><dt>Total yang harus dibayar</dt><dd className="payment-info-box__total">{formatRupiah(payload.payment.amount ?? config.paymentBaseAmount)}</dd></div>
-            </dl>
-            <p className="payment-info-box__example">
-              Contoh: jika kode unik {payload.payment.code}, bayar {formatRupiah(config.paymentBaseAmount + Number(payload.payment.code))}.
-            </p>
-          </>
-        ) : null}
-        {errors["payment.code"] ? <p className="field-error">{errors["payment.code"]}</p> : null}
-      </div>
-
-      <div className="payment-methods">
-        <article className="payment-method">
-          <h3>Gopay</h3>
-          <p className="payment-method__number">
-            {GOPAY_NUMBER}
-            <button type="button" className="payment-method__copy" onClick={copyGopayNumber} aria-label="Salin nomor Gopay">
-              <Copy aria-hidden="true" size={14} /> {copied ? "Tersalin" : "Salin"}
-            </button>
-          </p>
-          <p>a.n. {GOPAY_NAME}</p>
-        </article>
-        <article className="payment-method">
-          <h3>QRIS</h3>
-          {qrisFailed ? (
-            <div className="payment-method__qris-placeholder">[QRIS akan tersedia]</div>
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element -- static asset placeholder, uploaded manually later (see spec)
-            <img src="/images/qris.png" alt="QRIS Sekolah Ormawa" onError={() => setQrisFailed(true)} />
-          )}
-        </article>
-      </div>
-
-      <div className="payment-instructions">
-        <p>Cara pembayaran:</p>
-        <ol>
-          <li>Transfer via Gopay ke {GOPAY_NUMBER} (a.n. {GOPAY_NAME}) atau scan QRIS</li>
-          <li>Nominal WAJIB sesuai total di atas (Rp {config.paymentBaseAmount.toLocaleString("id-ID")} + kode unik)</li>
+          <li>Nominal WAJIB tepat {formatRupiah(config.paymentAmount)}</li>
           <li>Screenshot bukti pembayaran</li>
           <li>Upload di bawah ini</li>
         </ol>
@@ -1482,7 +1187,6 @@ function PaymentStep({ config, errors, payload, mutate }: StepProps) {
 }
 
 function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortfolio, requiresMbti, requiresAdkesmahFocus, allowsBudgetPlan, requiresSenbudPenugasan, mutate }: StepProps & {
->>>>>>> Stashed changes
   departmentsByTrack: DepartmentsByTrack;
   requiresPortfolio: boolean;
   requiresMbti: boolean;
@@ -1518,12 +1222,6 @@ function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortf
             </dl>
           </ReviewSection>
         ) : null}
-<<<<<<< HEAD
-        <ReviewSection title="Dokumen"><ul><li>CV · {payload.uploads.cv ? `${payload.uploads.cv.name} (${formatBytes(payload.uploads.cv.sizeBytes)})` : "Belum ada"}</li><li>Pas foto · {payload.uploads.photo ? `${payload.uploads.photo.name} (${formatBytes(payload.uploads.photo.sizeBytes)})` : "Belum ada"}</li><li>KTM · {payload.uploads.studentCard ? `${payload.uploads.studentCard.name} (${formatBytes(payload.uploads.studentCard.sizeBytes)})` : "Tidak dilampirkan"}</li><li>Bukti Follow dan Share · {payload.uploads.followEvidence ? `${payload.uploads.followEvidence.name} (${formatBytes(payload.uploads.followEvidence.sizeBytes)})` : "Belum ada"}</li></ul></ReviewSection>
-=======
-<<<<<<< Updated upstream
-        <ReviewSection title="Dokumen"><ul><li>CV · {payload.uploads.cv ? `${payload.uploads.cv.name} (${formatBytes(payload.uploads.cv.sizeBytes)})` : "Belum ada"}</li><li>Pas foto · {payload.uploads.photo ? `${payload.uploads.photo.name} (${formatBytes(payload.uploads.photo.sizeBytes)})` : "Belum ada"}</li><li>KTM · {payload.uploads.studentCard ? `${payload.uploads.studentCard.name} (${formatBytes(payload.uploads.studentCard.sizeBytes)})` : "Tidak dilampirkan"}</li></ul></ReviewSection>
-=======
         {requiresSenbudPenugasan ? (
           <ReviewSection title="Penugasan Senbud">
             <div className="review-penugasan">
@@ -1536,14 +1234,11 @@ function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortf
           </ReviewSection>
         ) : null}
         <ReviewSection title="Dokumen"><ul><li>CV · {payload.uploads.cv ? `${payload.uploads.cv.name} (${formatBytes(payload.uploads.cv.sizeBytes)})` : "Belum ada"}</li><li>Pas foto · {payload.uploads.photo ? `${payload.uploads.photo.name} (${formatBytes(payload.uploads.photo.sizeBytes)})` : "Belum ada"}</li><li>KTM · {payload.uploads.studentCard ? `${payload.uploads.studentCard.name} (${formatBytes(payload.uploads.studentCard.sizeBytes)})` : "Tidak dilampirkan"}</li><li>Bukti Follow dan Share · {payload.uploads.followEvidence ? `${payload.uploads.followEvidence.name} (${formatBytes(payload.uploads.followEvidence.sizeBytes)})` : "Belum ada"}</li></ul></ReviewSection>
->>>>>>> Stashed changes
->>>>>>> tanss
         <ReviewSection title="Esai"><article><strong>Pengalaman organisasi</strong><p>{payload.essays.organizationExperience}</p></article><article><strong>Kontribusi untuk Pilihan 1</strong><p>{payload.essays.contribution}</p></article><article><strong>Keseimbangan akademik</strong><p>{payload.essays.academicBalance}</p></article></ReviewSection>
+        {/* "Perubahan Sistem Pembayaran" (ADR-048): kode unik/total dihapus -
+            nominal sama untuk semua pendaftar, sudah ditampilkan di Step
+            Pembayaran itu sendiri, jadi tidak perlu diulang di ringkasan. */}
         <ReviewSection title="Pembayaran">
-          <dl>
-            <ReviewItem label="Kode unik" value={payload.payment.code ?? ""} />
-            <ReviewItem label="Total dibayar" value={payload.payment.amount ? formatRupiah(payload.payment.amount) : ""} />
-          </dl>
           <ul><li>Bukti pembayaran · {payload.uploads.paymentEvidence ? `${payload.uploads.paymentEvidence.name} (${formatBytes(payload.uploads.paymentEvidence.sizeBytes)})` : "Belum ada"}</li></ul>
         </ReviewSection>
       </div>
