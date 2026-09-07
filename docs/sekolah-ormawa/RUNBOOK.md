@@ -303,6 +303,16 @@ Migration history saat ini (`prisma/migrations/`, diterapkan berurutan berdasark
 4. `20260803001000_auth_phase4`
 5. `20260810180707_candidate_dashboard_phase5`
 6. `20260812070054_fix_auth_rate_limit_reset_token_id_type` (Phase 9 - lihat §Status prasyarat)
+7. `20260812170632_make_candidate_gpa_nullable`
+8. `20260903163335_selection_decision_system`
+9. `20260905173817_add_track_legislative`
+10. `20260906090000_department_specific_fields`
+11. `20260906120000_portfolio_google_drive_url`
+12. `20260907090000_study_program_free_text`
+13. `20260907120000_add_follow_evidence_upload_kind`
+14. `20260907150000_guidebook_and_payment`
+
+**Prasyarat image**: `Dockerfile`'s runner stage menyertakan penuh `node_modules` dari stage `deps` (bukan cuma output standalone Next.js) supaya CLI `prisma` (devDependency, tidak pernah di-trace masuk oleh Next's standalone output tracing karena tidak diimpor kode aplikasi - beda dari `@prisma/client` yang memang dipakai runtime) tersedia offline di versi yang persis sama dengan `package-lock.json`. Tanpa ini, `npx prisma ...` di dalam container mencoba auto-install versi prisma TERBARU dari npm (bisa berbeda major version, berisiko untuk migration) dan bisa gagal total (pernah terjadi: npm resolver crash "Cannot read properties of null (reading 'edgesOut')" saat mencoba install `prisma@8.0.0-rc.13` di image yang belum punya perbaikan ini). Image yang dibangun dari `Dockerfile` versi sekarang sudah membawa `prisma` CLI offline - pastikan image yang dipakai di server adalah hasil build ULANG setelah perbaikan ini (`docker compose -f docker-compose.prod.yml build app`), bukan image lama.
 
 Urutan deploy yang aman:
 1. Ambil backup pre-deploy (lihat §Backup dan restore) - wajib sebelum migration apa pun disentuh.
@@ -311,7 +321,7 @@ Urutan deploy yang aman:
    docker compose -f docker-compose.prod.yml run --rm app npx prisma migrate deploy
    ```
 3. Verifikasi `docker compose -f docker-compose.prod.yml run --rm app npx prisma migrate status` bersih (tidak ada pending/failed migration) sebelum melanjutkan.
-4. Jalankan seed **hanya sekali** saat provisioning awal (role, permission, department, Super Admin pertama): `docker compose -f docker-compose.prod.yml run --rm app npx prisma db seed` - jangan dijalankan ulang di database yang sudah berisi data nyata; seed memakai `SEED_SUPER_ADMIN_PASSWORD`/`SEED_DEPT_PJ_PASSWORD` yang harus dirotasi setelah dipakai.
+4. Jalankan seed **hanya sekali** saat provisioning awal (role, permission, department, Super Admin pertama): `docker compose -f docker-compose.prod.yml run --rm app npx prisma db seed` - jangan dijalankan ulang di database yang sudah berisi data nyata; seed memakai `SEED_SUPER_ADMIN_PASSWORD`/`SEED_DEPT_PJ_PASSWORD` yang harus dirotasi setelah dipakai. **Catatan cakupan seed**: script ini HANYA membuat role/permission/18 department (draft)/1 periode (draft)/1 study program fixture/2 akun (`superadmin.fixture@sekolah.local` + 1 PJ Ristek) - akun PJ untuk 17 Birdep lainnya dan konfigurasi periode (entryYear/prefix/consent/jadwal) tetap manual lewat UI Super Admin setelahnya, tidak ada mekanisme seed otomatis untuk itu.
 5. `docker compose -f docker-compose.prod.yml up -d --build app` untuk deploy kode aplikasi (image sudah lolos quality gate - lint, typecheck, unit, integration, E2E, build, lihat TEST_MATRIX.md) setelah migration sukses, bukan sebelumnya.
 6. `REGISTRATION_SUBMISSION_ENABLED` tetap `false` sampai smoke test post-deploy (bagian 5) lolos.
 

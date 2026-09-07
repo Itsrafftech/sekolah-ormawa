@@ -57,6 +57,24 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
+# The `prisma` CLI (needed for `prisma migrate deploy`/`prisma db seed` -
+# see RUNBOOK.md §Deployment readiness, run via `docker compose run --rm
+# app npx prisma ...`) is a devDependency, never imported by application
+# code, so Next's standalone output tracing above never pulls it in
+# (`@prisma/client` DOES get traced in - src/lib/db.ts imports it at
+# runtime - only the separate CLI package is missing). Without this,
+# `npx prisma ...` finds no local binary and falls back to npm
+# auto-installing whatever the LATEST prisma release is at that moment
+# (an untested, possibly different major version - hit an actual npm
+# resolver crash in practice, and even when it succeeds, running
+# migrations with a Prisma version that doesn't match the one this
+# schema/migration history was authored against is a real correctness
+# risk, not just an inconvenience). Overwriting with the full `deps`
+# node_modules (superset of what standalone's pruned copy already has,
+# same npm-resolved versions) guarantees `prisma` resolves to the exact
+# pinned version from package-lock.json, offline, every time.
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
+
 USER nextjs
 EXPOSE 3000
 
