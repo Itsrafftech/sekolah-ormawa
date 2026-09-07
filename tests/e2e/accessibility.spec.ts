@@ -166,6 +166,13 @@ test.describe("Navigasi keyboard dan focus state", () => {
 
   test("form pendaftaran: Tab ke input pertama menampilkan focus ring", async ({ page }) => {
     await page.goto("/daftar");
+    // "Guidebook, ketentuan, dan pembayaran": Step 0 is now Guidebook &
+    // Jalur, not Identitas - "Nama lengkap" only renders on Step 1 after
+    // the guidebook checkbox and a track are both set and "Simpan &
+    // lanjut" is clicked (same as registration.spec.ts's chooseTrack()).
+    await page.getByLabel(/Saya sudah membaca guidebook dan ketentuan pendaftaran/u).check();
+    await page.getByRole("radio", { name: /Eksekutif PKU/u }).check();
+    await page.getByRole("button", { name: /Simpan & lanjut/ }).click();
     await page.getByLabel("Nama lengkap").focus();
     await expectVisibleFocusRing(page);
   });
@@ -190,10 +197,21 @@ test.describe("Navigasi keyboard dan focus state", () => {
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/admin\/dashboard/u, { timeout: 15_000 });
 
+    // Root-caused: right after login the dashboard is still settling
+    // (client-side render of CandidateDashboard), so focus can transiently
+    // sit on <body> mid-loop. document.body.textContent contains the
+    // WHOLE page (including "Kelola akun PJ" from the shell-actions link
+    // elsewhere on the page), so a plain textContent.includes() check
+    // false-matches on body itself - excluding body here makes the loop
+    // correctly keep tabbing past that transient state instead of
+    // stopping on a focus target that isn't actually focused.
     let reached = false;
     for (let i = 0; i < 40 && !reached; i += 1) {
       await page.keyboard.press("Tab");
-      reached = await page.evaluate(() => document.activeElement?.textContent?.includes("Kelola akun PJ") ?? false);
+      reached = await page.evaluate(() => {
+        const element = document.activeElement;
+        return element !== null && element !== document.body && (element.textContent?.includes("Kelola akun PJ") ?? false);
+      });
     }
     expect(reached, "Tidak dapat mencapai link 'Kelola akun PJ' lewat Tab").toBe(true);
     await expectVisibleFocusRing(page);
