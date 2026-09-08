@@ -1113,6 +1113,29 @@ summary:focus-visible {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.directory-section__footer {
+  display: flex;
+  margin-top: 28px;
+  justify-content: center;
+}
+
+.directory-section__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--royal);
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  transition: gap 180ms ease;
+}
+
+.directory-section__link:hover,
+.directory-section__link:focus-visible {
+  gap: 12px;
+}
+
 .department-card {
   position: relative;
   display: flex;

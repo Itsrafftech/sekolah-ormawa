@@ -14,10 +14,10 @@ export const metadata: Metadata = createPublicMetadata({
   title: "Direktori Birdep",
   description:
     "Direktori unit Ormawa PKU dan status slot Sekolah Ormawa berdasarkan periode aktif.",
-  path: "/departemen",
+  path: "/birdep",
 });
 
-export default async function DepartmentsPage() {
+export default async function BirdepDirectoryPage() {
   const publicData = await getPublicLandingData();
 
   return (

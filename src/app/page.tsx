@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import {
   ArrowDown,
   Compass,
@@ -216,6 +217,11 @@ export default async function HomePage() {
             limit={6}
             source={publicData.source}
           />
+          <div className="directory-section__footer">
+            <Link className="directory-section__link" href="/birdep">
+              Lihat semua birdep →
+            </Link>
+          </div>
         </section>
 
         <section className="experience-section section-pad">
