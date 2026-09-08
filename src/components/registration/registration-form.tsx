@@ -1136,13 +1136,13 @@ function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allows
             />
           </Field>
           <div className="follow-evidence-instructions">
-            <p>Unggah screenshot bukti upload story atau post Instagram yang berkaitan dengan seni atau budaya.</p>
+            <p>Unggah screenshot bukti upload Reels Instagram kamu.</p>
           </div>
           <div className="upload-grid">
             <UploadField
               config={config}
               id="uploads.senbudInstagramEvidence"
-              label="Bukti Upload Story/Post Instagram"
+              label="Bukti Upload Reels Instagram"
               accept=".jpg,.jpeg,.png,image/jpeg,image/png"
               detail="Wajib · JPG/PNG · maksimum 5 MB"
               error={errors["uploads.senbudInstagramEvidence"]}
@@ -1289,7 +1289,7 @@ function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortf
                 ditampilkan di sini juga (section Senbud yang sama), bukan
                 di card "Dokumen" generik di bawah - konsisten dengan
                 pemisahan Pembayaran dari Dokumen. */}
-            <ul><li>Bukti Story/Post Instagram · {payload.uploads.senbudInstagramEvidence ? `${payload.uploads.senbudInstagramEvidence.name} (${formatBytes(payload.uploads.senbudInstagramEvidence.sizeBytes)})` : "Belum ada"}</li></ul>
+            <ul><li>Bukti Upload Reels Instagram · {payload.uploads.senbudInstagramEvidence ? `${payload.uploads.senbudInstagramEvidence.name} (${formatBytes(payload.uploads.senbudInstagramEvidence.sizeBytes)})` : "Belum ada"}</li></ul>
             <div className="review-penugasan">
               <p><strong>Pastikan sebelum mengirim:</strong> Portofolio (opsional) dan Video Kreatif (wajib) untuk Senbud sudah disiapkan.</p>
               <ul>
