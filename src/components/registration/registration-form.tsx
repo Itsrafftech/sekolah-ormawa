@@ -1090,17 +1090,23 @@ function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allows
         </section>
       ) : null}
 
-      {/* "Tambahan Field Khusus Senbud": portofolio (opsional, link Google
-          Drive) dan bukti Instagram (wajib, upload gambar) - hanya tampil
-          ketika Senbud dipilih sebagai Pilihan 1 atau 2. Sama seperti
-          Medbrand/Komanggar di atas, tapi punya kolom
+      {/* "Perbaikan Tampilan Senbud": satu section gabungan (bukan dua
+          section terpisah seperti sebelumnya) - field nyata Portofolio/
+          Instagram ("Tambahan Field Khusus Senbud") diletakkan DI DALAM
+          section "Penugasan khusus · Calon Rockidz" milik Tanss, sebelum
+          Video Kreatif, sesuai urutan yang diminta. Sama seperti Medbrand/
+          Komanggar di atas, field portofolio pakai kolom
           `senbudPortfolioUrl` sendiri (bukan `portfolioUrl`) karena
           Medbrand/Badmedbrnd dan Senbud sama-sama EXECUTIVE dan bisa
           dipilih bersamaan sebagai dua Pilihan yang berbeda. */}
       {requiresSenbudPenugasan ? (
-        <section className="portfolio-section" id={fieldId("departmentFields.senbudPortfolioUrl")}>
+        <section className="portfolio-section">
           <header>
-            <div><p className="eyebrow">Seni dan Budaya</p><h3>Portofolio Senbud</h3></div>
+            <div>
+              <p className="eyebrow">Seni dan Budaya</p>
+              <h3>Penugasan khusus · Calon Rockidz</h3>
+              <p>Khusus pendaftar Senbud (Pilihan 1 atau 2). Persiapkan materi berikut sebelum pengumpulan.</p>
+            </div>
           </header>
           <div className="follow-evidence-instructions">
             <p>Portofolio berisi:</p>
@@ -1145,24 +1151,6 @@ function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allows
               onChange={setSenbudInstagramEvidence}
             />
           </div>
-        </section>
-      ) : null}
-
-      {/* Penugasan khusus Senbud ("Calon Rockidz"): informasional, hanya
-          tampil ketika Senbud dipilih sebagai Pilihan 1 atau 2. Bukan field
-          submit - materi Video Kreatif disiapkan pendaftar di luar form
-          (Reels). Bullet "Portofolio — Opsional" yang dulu ada di sini
-          DIHAPUS - instruksinya digantikan field nyata Portofolio Senbud
-          di atas (bukan lagi murni teks informasional). */}
-      {requiresSenbudPenugasan ? (
-        <section className="portfolio-section">
-          <header>
-            <div>
-              <p className="eyebrow">Seni dan Budaya</p>
-              <h3>Penugasan khusus · Calon Rockidz</h3>
-              <p>Khusus pendaftar Senbud (Pilihan 1 atau 2). Persiapkan materi berikut sebelum pengumpulan.</p>
-            </div>
-          </header>
           <ol className="penugasan-list">
             <li>
               <strong>Video Kreatif — Wajib, diunggah di Reels</strong>
