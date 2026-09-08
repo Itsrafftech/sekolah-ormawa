@@ -26,6 +26,8 @@ const komanggar = "10000000-0000-4000-8000-000000000008";
 // fields - keeps the plain "both choices legislative" happy-path test
 // below from tripping BADMEDBRND's (now-required) portfolio field.
 const kompeng = "10000000-0000-4000-8000-000000000009";
+// "Tambahan Field Khusus Senbud".
+const senbud = "10000000-0000-4000-8000-000000000010";
 
 function department(overrides: Partial<RegistrationFormConfig["departments"][number]>): RegistrationFormConfig["departments"][number] {
   return {
@@ -66,6 +68,7 @@ const config: RegistrationFormConfig = {
     department({ id: komit, code: "KOMIT", name: "Biro Kolaborasi dan Kemitraan", shortName: "Komit", requiresMbti: true }),
     department({ id: adkesmah, code: "ADKESMAH", name: "Advokasi dan Kesejahteraan Mahasiswa", shortName: "Adkesmah", requiresAdkesmahFocus: true }),
     department({ id: komanggar, code: "KOMANGG", name: "Komisi Anggaran", shortName: "Komanggar", allowsBudgetPlan: true, track: "LEGISLATIVE" }),
+    department({ id: senbud, code: "SENBUD", name: "Seni dan Budaya", shortName: "Senbud" }),
   ],
 };
 
@@ -97,6 +100,7 @@ function payload(): RegistrationPayload {
       studentCard: null,
       followEvidence: { id: "40000000-0000-4000-8000-000000000003", kind: "FOLLOW_EVIDENCE", name: "bukti.pdf", sizeBytes: 100, mimeType: "application/pdf" },
       paymentEvidence: { id: "40000000-0000-4000-8000-000000000004", kind: "PAYMENT_EVIDENCE", name: "bukti-bayar.pdf", sizeBytes: 100, mimeType: "application/pdf" },
+      senbudInstagramEvidence: null,
     },
     essays: { organizationExperience: "Sintetis", contribution: "Sintetis", academicBalance: "Sintetis" },
     departmentFields: {},
@@ -337,6 +341,65 @@ describe("registration validation", () => {
         success: false,
         errors: { "departmentFields.budgetPlanUrl": expect.any(String) },
       });
+    });
+  });
+
+  // "Tambahan Field Khusus Senbud".
+  describe("Field khusus Senbud", () => {
+    it("menolak Senbud tanpa bukti Instagram, menerima dengan bukti", () => {
+      const withoutEvidence = payload();
+      withoutEvidence.choices[0].departmentId = senbud;
+      const rejected = validateRegistrationPayload(withoutEvidence, config);
+      expect(rejected.success).toBe(false);
+      if (!rejected.success) expect(rejected.errors["uploads.senbudInstagramEvidence"]).toBeTruthy();
+
+      const withEvidence = payload();
+      withEvidence.choices[0].departmentId = senbud;
+      withEvidence.uploads.senbudInstagramEvidence = {
+        id: "40000000-0000-4000-8000-000000000005",
+        kind: "SENBUD_INSTAGRAM",
+        name: "bukti-ig.jpg",
+        sizeBytes: 100,
+        mimeType: "image/jpeg",
+      };
+      expect(validateRegistrationPayload(withEvidence, config).success).toBe(true);
+    });
+
+    it("menerima Senbud tanpa link portofolio (opsional), menerima dengan link Google Drive valid", () => {
+      const withoutPortfolio = payload();
+      withoutPortfolio.choices[0].departmentId = senbud;
+      withoutPortfolio.uploads.senbudInstagramEvidence = {
+        id: "40000000-0000-4000-8000-000000000005",
+        kind: "SENBUD_INSTAGRAM",
+        name: "bukti-ig.jpg",
+        sizeBytes: 100,
+        mimeType: "image/jpeg",
+      };
+      expect(validateRegistrationPayload(withoutPortfolio, config).success).toBe(true);
+
+      const withPortfolio = { ...withoutPortfolio, departmentFields: { ...withoutPortfolio.departmentFields, senbudPortfolioUrl: driveUrl } };
+      expect(validateRegistrationPayload(withPortfolio, config).success).toBe(true);
+    });
+
+    it("menolak link portofolio Senbud non-Google-Drive", () => {
+      const input = payload();
+      input.choices[0].departmentId = senbud;
+      input.uploads.senbudInstagramEvidence = {
+        id: "40000000-0000-4000-8000-000000000005",
+        kind: "SENBUD_INSTAGRAM",
+        name: "bukti-ig.jpg",
+        sizeBytes: 100,
+        mimeType: "image/jpeg",
+      };
+      input.departmentFields.senbudPortfolioUrl = "https://example.test/portfolio";
+      expect(validateRegistrationPayload(input, config)).toMatchObject({
+        success: false,
+        errors: { "departmentFields.senbudPortfolioUrl": expect.any(String) },
+      });
+    });
+
+    it("tidak wajib bukti Instagram jika Senbud bukan salah satu pilihan", () => {
+      expect(validateRegistrationPayload(payload(), config).success).toBe(true);
     });
   });
 });

@@ -52,6 +52,11 @@ function policyFor(kind: UploadKind): UploadPolicy {
         mimeTypes: ["image/jpeg", "image/png", "application/pdf"],
         maxBytes: 5 * MEBIBYTE,
       };
+    // "Tambahan Field Khusus Senbud": one required Instagram story/post
+    // screenshot, only when Senbud is chosen - JPG/PNG only (no PDF,
+    // unlike PAYMENT_EVIDENCE/STUDENT_CARD), 5MB cap per spec.
+    case "SENBUD_INSTAGRAM":
+      return { extensions: [".jpg", ".jpeg", ".png"], mimeTypes: ["image/jpeg", "image/png"], maxBytes: 5 * MEBIBYTE };
   }
 }
 

@@ -183,6 +183,28 @@ export default async function CandidateDetailPage({ params, searchParams }: Page
                 </li>
               </ul>
             ) : null}
+            {/* "Tambahan Field Khusus Senbud": link (plain, opsional, sama
+                pola dengan portfolioUrl/budgetPlanUrl di atas) dan bukti
+                Instagram (file wajib, via signed URL - sama pola dengan
+                kartu Pembayaran/Dokumen). */}
+            {candidate.supplemental.senbudPortfolioUrl ? (
+              <ul className="candidate-detail__files">
+                <li>
+                  <a href={candidate.supplemental.senbudPortfolioUrl} target="_blank" rel="noopener noreferrer nofollow">
+                    <LinkIcon aria-hidden="true" size={15} /> Portofolio Senbud: {candidate.supplemental.senbudPortfolioUrl}
+                  </a>
+                </li>
+              </ul>
+            ) : null}
+            {candidate.supplemental.senbudInstagramEvidence ? (
+              <ul className="candidate-detail__files">
+                <li>
+                  <a href={fileHref(candidate.supplemental.senbudInstagramEvidence.id)} target="_blank" rel="noopener noreferrer">
+                    <FileText aria-hidden="true" size={15} /> Bukti Story/Post Instagram: {candidate.supplemental.senbudInstagramEvidence.originalFileName}
+                  </a>
+                </li>
+              </ul>
+            ) : null}
           </div>
         ) : null}
       </section>

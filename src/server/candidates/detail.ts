@@ -6,7 +6,7 @@ import { findScopedCandidateId } from "@/server/candidates/scope";
 
 function toUploadSummary(upload: {
   id: string;
-  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE" | "PAYMENT_EVIDENCE";
+  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE" | "PAYMENT_EVIDENCE" | "SENBUD_INSTAGRAM";
   originalFileName: string;
   sizeBytes: number;
   detectedMimeType: string | null;
@@ -103,13 +103,29 @@ export async function getCandidateDetail(
       : null;
   const supplementalBudgetPlanUrl =
     viewerCode === "KOMANGG" ? candidate.supplementalData?.budgetPlanUrl ?? null : null;
+  // "Tambahan Field Khusus Senbud": senbudInstagramEvidence is pulled out
+  // of the generic `uploads` list below (never shown there, unlike CV/
+  // PHOTO/FOLLOW_EVIDENCE/PAYMENT_EVIDENCE which any co-viewing PJ can
+  // see) and re-attached here instead, scoped to SENBUD exactly like
+  // senbudPortfolioUrl - a non-Senbud viewer's response never contains
+  // the file reference at all, not just a UI that hides it.
+  const senbudInstagramUpload = candidate.uploads.find(
+    (upload): upload is typeof upload & { kind: "SENBUD_INSTAGRAM" } => upload.kind === "SENBUD_INSTAGRAM",
+  );
+  const supplementalSenbudPortfolioUrl =
+    viewerCode === "SENBUD" ? candidate.supplementalData?.senbudPortfolioUrl ?? null : null;
+  const supplementalSenbudInstagramEvidence =
+    viewerCode === "SENBUD" && senbudInstagramUpload ? toUploadSummary(senbudInstagramUpload) : null;
   const supplemental =
-    supplementalKomitMbti || supplementalAdkesmahFocus || supplementalPortfolioUrl || supplementalBudgetPlanUrl
+    supplementalKomitMbti || supplementalAdkesmahFocus || supplementalPortfolioUrl || supplementalBudgetPlanUrl ||
+    supplementalSenbudPortfolioUrl || supplementalSenbudInstagramEvidence
       ? {
           komitMbti: supplementalKomitMbti,
           adkesmahFocus: supplementalAdkesmahFocus,
           portfolioUrl: supplementalPortfolioUrl,
           budgetPlanUrl: supplementalBudgetPlanUrl,
+          senbudPortfolioUrl: supplementalSenbudPortfolioUrl,
+          senbudInstagramEvidence: supplementalSenbudInstagramEvidence,
         }
       : null;
 
@@ -140,6 +156,9 @@ export async function getCandidateDetail(
     // PORTFOLIO/BUDGET_PLAN at the query level - this filter exists only
     // to narrow the TS type accordingly (Prisma's generated type for a
     // `select`-ed enum column can't reflect a runtime WHERE filter).
+    // SENBUD_INSTAGRAM is deliberately excluded here too (unlike the
+    // others, which apply to every registrant) - it's department-scoped,
+    // surfaced only via `supplemental.senbudInstagramEvidence` above.
     uploads: candidate.uploads
       .filter((upload): upload is typeof upload & { kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE" | "PAYMENT_EVIDENCE" } =>
         upload.kind === "CV" || upload.kind === "PHOTO" || upload.kind === "STUDENT_CARD" ||

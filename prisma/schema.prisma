@@ -385,20 +385,27 @@ model FileUpload {
 /// keeps its PORTFOLIO/BUDGET_PLAN values as inert/retired (Postgres
 /// can't drop an enum value) but nothing writes them going forward.
 model CandidateSupplementalData {
-  id            String         @id @default(uuid())
-  candidateId   String         @unique
-  komitMbti     String?
-  adkesmahFocus AdkesmahFocus?
+  id                 String         @id @default(uuid())
+  candidateId        String         @unique
+  komitMbti          String?
+  adkesmahFocus      AdkesmahFocus?
   /// Google Drive link for Medbrand (eksekutif) / Badmedbrnd (legislatif)
   /// portfolio - validated (client+server) to start with
   /// "https://drive.google.com".
-  portfolioUrl  String?
+  portfolioUrl       String?
   /// Google Drive link for Komisi Anggaran's RAB document - optional,
   /// same "https://drive.google.com" validation as portfolioUrl.
-  budgetPlanUrl String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  candidate     Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  budgetPlanUrl      String?
+  /// "Tambahan Field Khusus Senbud": Google Drive link for Senbud's
+  /// portfolio (biodata, pengalaman organisasi, bakat dan minat) -
+  /// OPTIONAL (unlike portfolioUrl above), same "https://drive.google.com"
+  /// validation. A separate column (not reusing portfolioUrl) because a
+  /// candidate could in principle pick both Medbrand/Badmedbrnd AND Senbud
+  /// across their two choices - each Birdep's portfolio needs its own slot.
+  senbudPortfolioUrl String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  candidate          Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
 
   @@map("candidate_supplemental_data")
 }
@@ -621,6 +628,15 @@ enum ChoiceRank {
 /// amount itself is plain content (a literal Rupiah figure shown in the
 /// form), not a per-candidate value, so unlike the retired paymentCode/
 /// paymentAmount Candidate columns it needs no database column at all.
+///
+/// SENBUD_INSTAGRAM ("Tambahan Field Khusus Senbud"): one required
+/// Instagram story/post screenshot, ONLY when Senbud is one of the two
+/// choices - unlike FOLLOW_EVIDENCE/PAYMENT_EVIDENCE (every registrant),
+/// this reuses the same FileUpload/UploadKind mechanism but is
+/// department-scoped like CandidateSupplementalData's other fields, so it
+/// is visibility-scoped in getCandidateDetail() (excluded from the
+/// generic "Dokumen" list, surfaced only in the Senbud-scoped
+/// supplemental section) rather than shown to every co-viewing PJ.
 enum UploadKind {
   CV
   PHOTO
@@ -629,6 +645,7 @@ enum UploadKind {
   BUDGET_PLAN
   FOLLOW_EVIDENCE
   PAYMENT_EVIDENCE
+  SENBUD_INSTAGRAM
 }
 
 enum UploadStatus {

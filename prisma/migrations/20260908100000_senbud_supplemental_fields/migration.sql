@@ -1,0 +1,55 @@
+-- "Tambahan Field Khusus Senbud": adds two new fields for the Seni dan
+-- Budaya (SENBUD) department, following the exact same pattern as
+-- ADR-043/ADR-045's other department-triggered fields:
+--
+--   1. CandidateSupplementalData.senbudPortfolioUrl (nullable text) -
+--      OPTIONAL Google Drive portfolio link, same shape/validation as the
+--      existing portfolioUrl (Medbrand/Badmedbrnd) and budgetPlanUrl
+--      (Komanggar) columns on the same table. A separate column rather
+--      than reusing portfolioUrl - a candidate could pick both Medbrand/
+--      Badmedbrnd AND Senbud across their two choices (both are
+--      EXECUTIVE-track departments), so each Birdep's portfolio needs its
+--      own slot.
+--   2. UploadKind.SENBUD_INSTAGRAM - one REQUIRED (only when Senbud is
+--      chosen) Instagram story/post screenshot, reusing the existing
+--      FileUpload/UploadKind mechanism exactly like FOLLOW_EVIDENCE/
+--      PAYMENT_EVIDENCE (one file, one owner, one lifecycle, same viewer
+--      route) - but unlike those two (which apply to every registrant),
+--      this one is department-scoped for VIEWING (application code in
+--      src/server/candidates/detail.ts excludes it from the generic
+--      "Dokumen" list, surfacing it only to Senbud-scoped viewers,
+--      mirroring how komitMbti/adkesmahFocus/portfolioUrl are scoped).
+--
+-- Backfill: NONE PERFORMED. Verified via direct query
+-- (`SELECT ... FROM candidates c JOIN candidate_choices cc ... JOIN
+-- departments d ON d.code = 'SENBUD'`) that zero existing candidates in
+-- this environment have SENBUD as either choice, so there is no row that
+-- needs a placeholder SENBUD_INSTAGRAM upload (unlike ADR-046's
+-- FOLLOW_EVIDENCE backfill, which was needed because existing candidates
+-- predated that requirement) and senbudPortfolioUrl is nullable, so it
+-- correctly defaults to NULL for every existing row with no action
+-- needed. If this assumption is wrong in another environment (a SENBUD
+-- candidate already exists there when this migration runs), that
+-- candidate's PJ Senbud dashboard will show "Belum ada bukti" for the
+-- Instagram evidence (same safe fallback FOLLOW_EVIDENCE/PAYMENT_EVIDENCE
+-- use), not a broken link - so this is a display gap, not a crash risk.
+--
+-- Rollback:
+--   ALTER TABLE "candidate_supplemental_data" DROP COLUMN "senbudPortfolioUrl";
+--   -- UploadKind's new 'SENBUD_INSTAGRAM' value cannot be dropped with
+--   -- ALTER TYPE (Postgres has no "remove enum value" statement, same as
+--   -- every other retired/added value in this enum's history). As long as
+--   -- no row has been written with kind = 'SENBUD_INSTAGRAM' yet (checkable
+--   -- via `SELECT 1 FROM file_uploads WHERE kind = 'SENBUD_INSTAGRAM'`),
+--   -- the value is inert and safe to leave in place. A byte-for-byte
+--   -- rollback of UploadKind itself requires recreating the type end-to-end:
+--   --   ALTER TYPE "UploadKind" RENAME TO "UploadKind_old";
+--   --   CREATE TYPE "UploadKind" AS ENUM ('CV', 'PHOTO', 'STUDENT_CARD', 'PORTFOLIO', 'BUDGET_PLAN', 'FOLLOW_EVIDENCE', 'PAYMENT_EVIDENCE');
+--   --   ALTER TABLE "file_uploads" ALTER COLUMN "kind" TYPE "UploadKind" USING ("kind"::text::"UploadKind");
+--   --   DROP TYPE "UploadKind_old";
+
+-- AlterEnum
+ALTER TYPE "UploadKind" ADD VALUE 'SENBUD_INSTAGRAM';
+
+-- AlterTable
+ALTER TABLE "candidate_supplemental_data" ADD COLUMN "senbudPortfolioUrl" TEXT;

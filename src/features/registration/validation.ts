@@ -48,7 +48,7 @@ export function isValidGoogleDriveUrl(value: string, maxLength: number): boolean
 
 const uploadReferenceSchema = z.object({
   id: z.uuid(),
-  kind: z.enum(["CV", "PHOTO", "STUDENT_CARD", "FOLLOW_EVIDENCE", "PAYMENT_EVIDENCE"]),
+  kind: z.enum(["CV", "PHOTO", "STUDENT_CARD", "FOLLOW_EVIDENCE", "PAYMENT_EVIDENCE", "SENBUD_INSTAGRAM"]),
   name: z.string().min(1).max(255),
   sizeBytes: z.number().int().positive(),
   mimeType: z.string().min(1).max(127),
@@ -99,6 +99,7 @@ const payloadSchema = z.object({
     studentCard: uploadReferenceSchema.nullable(),
     followEvidence: uploadReferenceSchema.nullable(),
     paymentEvidence: uploadReferenceSchema.nullable(),
+    senbudInstagramEvidence: uploadReferenceSchema.nullable(),
   }),
   essays: z.object({
     organizationExperience: z.string().trim(),
@@ -119,6 +120,7 @@ const payloadSchema = z.object({
     adkesmahFocus: z.enum(["ADVOCACY", "WELFARE"]).optional(),
     portfolioUrl: z.string().trim().optional(),
     budgetPlanUrl: z.string().trim().optional(),
+    senbudPortfolioUrl: z.string().trim().optional(),
   }),
   consent: z.object({
     // Custom messages: without these, a Zod structural failure here (e.g.
@@ -253,6 +255,19 @@ export function validateRegistrationPayload(
     !isValidGoogleDriveUrl(data.departmentFields.budgetPlanUrl, config.portfolioUrlMaxLength)
   ) {
     errors["departmentFields.budgetPlanUrl"] = "Link harus berupa URL Google Drive yang valid (https://drive.google.com/...).";
+  }
+
+  // "Tambahan Field Khusus Senbud": portfolio link stays OPTIONAL (same
+  // "only checked when present" pattern as budgetPlanUrl above) - only
+  // the Instagram evidence upload is required when Senbud is chosen.
+  if (
+    data.departmentFields.senbudPortfolioUrl &&
+    !isValidGoogleDriveUrl(data.departmentFields.senbudPortfolioUrl, config.portfolioUrlMaxLength)
+  ) {
+    errors["departmentFields.senbudPortfolioUrl"] = "Link harus berupa URL Google Drive yang valid (https://drive.google.com/...).";
+  }
+  if (selectedCodes.includes("SENBUD") && !data.uploads.senbudInstagramEvidence) {
+    errors["uploads.senbudInstagramEvidence"] = "Bukti upload story/post Instagram wajib diunggah karena Seni dan Budaya dipilih.";
   }
 
   return Object.keys(errors).length > 0

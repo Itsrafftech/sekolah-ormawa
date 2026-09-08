@@ -35,10 +35,12 @@ export type DepartmentsByTrack = {
 // budgetPlanUrl below). FOLLOW_EVIDENCE added (UAT feedback -
 // "persyaratan follow dan share"): required PDF for every registrant.
 // PAYMENT_EVIDENCE added ("Guidebook, ketentuan, dan pembayaran"):
-// required payment screenshot/receipt for every registrant.
+// required payment screenshot/receipt for every registrant. SENBUD_
+// INSTAGRAM added ("Tambahan Field Khusus Senbud"): required Instagram
+// story/post screenshot, only when Senbud is one of the two choices.
 export type UploadReference = {
   id: string;
-  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE" | "PAYMENT_EVIDENCE";
+  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE" | "PAYMENT_EVIDENCE" | "SENBUD_INSTAGRAM";
   name: string;
   sizeBytes: number;
   mimeType: string;
@@ -89,6 +91,10 @@ export type RegistrationPayload = {
     // "Guidebook, ketentuan, dan pembayaran": one required payment
     // screenshot/receipt for every registrant.
     paymentEvidence: UploadReference | null;
+    // "Tambahan Field Khusus Senbud": required only when Senbud is one of
+    // the two choices (checked in validation.ts/submit.ts, same
+    // requiredness pattern as komitMbti/adkesmahFocus below).
+    senbudInstagramEvidence: UploadReference | null;
   };
   essays: {
     organizationExperience: string;
@@ -110,6 +116,11 @@ export type RegistrationPayload = {
     adkesmahFocus?: AdkesmahFocus;
     portfolioUrl?: string;
     budgetPlanUrl?: string;
+    // "Tambahan Field Khusus Senbud": OPTIONAL Google Drive portfolio
+    // link, separate column/field from portfolioUrl above (a candidate
+    // could pick both Medbrand/Badmedbrnd AND Senbud across their two
+    // choices - both EXECUTIVE-track).
+    senbudPortfolioUrl?: string;
   };
   consent: {
     truthful: boolean;

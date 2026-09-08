@@ -142,6 +142,7 @@ async function buildPayload(suffix: string): Promise<{ payload: RegistrationPayl
         studentCard: null,
         followEvidence: { id: followEvidence.id, kind: "FOLLOW_EVIDENCE", name: followEvidence.originalFileName, sizeBytes: followEvidence.sizeBytes, mimeType: followEvidence.detectedMimeType ?? "application/pdf" },
         paymentEvidence: { id: paymentEvidence.id, kind: "PAYMENT_EVIDENCE", name: paymentEvidence.originalFileName, sizeBytes: paymentEvidence.sizeBytes, mimeType: paymentEvidence.detectedMimeType ?? "application/pdf" },
+        senbudInstagramEvidence: null,
       },
       essays: { organizationExperience: "Sintetis", contribution: "Sintetis", academicBalance: "Sintetis" },
       departmentFields: {},

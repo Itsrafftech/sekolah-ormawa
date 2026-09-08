@@ -77,4 +77,19 @@ describe("private upload validation", () => {
       validateUploadFile({ kind: "PAYMENT_EVIDENCE", fileName: "bayar.pdf", declaredMimeType: "application/pdf", bytes: oversized }),
     ).toThrow("Ukuran");
   });
+
+  // "Tambahan Field Khusus Senbud": JPG/PNG only (no PDF, unlike
+  // PAYMENT_EVIDENCE/STUDENT_CARD), 5MB cap.
+  it("menerima SENBUD_INSTAGRAM JPG/PNG valid, menolak PDF dan file di atas 5MB", () => {
+    expect(validateUploadFile({ kind: "SENBUD_INSTAGRAM", fileName: "bukti-ig.png", declaredMimeType: "image/png", bytes: png }).detectedMimeType).toBe("image/png");
+    expect(validateUploadFile({ kind: "SENBUD_INSTAGRAM", fileName: "bukti-ig.jpg", declaredMimeType: "image/jpeg", bytes: jpeg }).detectedMimeType).toBe("image/jpeg");
+    expect(() =>
+      validateUploadFile({ kind: "SENBUD_INSTAGRAM", fileName: "bukti-ig.pdf", declaredMimeType: "application/pdf", bytes: pdf }),
+    ).toThrow("Ekstensi");
+    const oversized = new Uint8Array(5 * 1024 * 1024 + 1);
+    oversized.set(png);
+    expect(() =>
+      validateUploadFile({ kind: "SENBUD_INSTAGRAM", fileName: "bukti-ig.png", declaredMimeType: "image/png", bytes: oversized }),
+    ).toThrow("Ukuran");
+  });
 });

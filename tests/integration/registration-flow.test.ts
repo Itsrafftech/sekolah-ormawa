@@ -31,6 +31,8 @@ const komanggar = "72000000-0000-4000-8000-000000000008";
 // never triggers Phase C's portfolio requirement. This fixture uses the
 // real code for the tests that need that requirement to actually fire.
 const badmedbrndReal = "72000000-0000-4000-8000-000000000009";
+// "Tambahan Field Khusus Senbud".
+const senbud = "72000000-0000-4000-8000-000000000010";
 const studyProgramId = "73000000-0000-4000-8000-000000000001";
 const motivation = Array.from({ length: 100 }, (_, index) => `alasan${index}`).join(" ");
 const pdf = new TextEncoder().encode("%PDF-1.4 synthetic integration fixture");
@@ -92,8 +94,9 @@ beforeAll(async () => {
     `INSERT INTO departments
       (id, code, name, "shortName", "unitType", "sortOrder", "isActive", "configStatus", "createdAt", "updatedAt")
      VALUES ($1, 'KOMIT', 'Biro Kolaborasi dan Kemitraan Test', 'Komit', 'BIRO', 7, true, 'ACTIVE', now(), now()),
-            ($2, 'ADKESMAH', 'Advokasi dan Kesejahteraan Mahasiswa Test', 'Adkesmah', 'DEPARTEMEN', 8, true, 'ACTIVE', now(), now())`,
-    [komit, adkesmah],
+            ($2, 'ADKESMAH', 'Advokasi dan Kesejahteraan Mahasiswa Test', 'Adkesmah', 'DEPARTEMEN', 8, true, 'ACTIVE', now(), now()),
+            ($3, 'SENBUD', 'Seni dan Budaya Test', 'Senbud', 'DEPARTEMEN', 10, true, 'ACTIVE', now(), now())`,
+    [komit, adkesmah, senbud],
   );
   await pool.query(
     `INSERT INTO recruitment_periods
@@ -103,7 +106,7 @@ beforeAll(async () => {
   );
   for (const departmentId of [
     departmentA, departmentB, medbrand, legislativeA, legislativeB,
-    komit, adkesmah, komanggar, badmedbrndReal,
+    komit, adkesmah, komanggar, badmedbrndReal, senbud,
   ]) {
     await pool.query(
       `INSERT INTO period_departments
@@ -134,7 +137,7 @@ afterAll(async () => {
 
 async function upload(
   ownerToken: string,
-  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE" | "PAYMENT_EVIDENCE",
+  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE" | "PAYMENT_EVIDENCE" | "SENBUD_INSTAGRAM",
   suffix: string,
 ): Promise<UploadReference> {
   const isPdf = kind === "CV" || kind === "FOLLOW_EVIDENCE" || kind === "PAYMENT_EVIDENCE";
@@ -171,12 +174,19 @@ async function validPayload(input: {
     adkesmahFocus?: "ADVOCACY" | "WELFARE";
     portfolioUrl?: string;
     budgetPlanUrl?: string;
+    senbudPortfolioUrl?: string;
   };
+  // "Tambahan Field Khusus Senbud": opt-in so non-Senbud tests aren't
+  // forced to build an extra upload they never asserted about.
+  includeSenbudEvidence?: boolean;
 }): Promise<RegistrationPayload> {
   const cv = await upload(input.ownerToken, "CV", `cv-${input.suffix}`);
   const photo = await upload(input.ownerToken, "PHOTO", `photo-${input.suffix}`);
   const followEvidence = await upload(input.ownerToken, "FOLLOW_EVIDENCE", `bukti-${input.suffix}`);
   const paymentEvidence = await upload(input.ownerToken, "PAYMENT_EVIDENCE", `bayar-${input.suffix}`);
+  const senbudInstagramEvidence = input.includeSenbudEvidence
+    ? await upload(input.ownerToken, "SENBUD_INSTAGRAM", `ig-${input.suffix}`)
+    : null;
   return {
     periodId,
     guidebookAcknowledged: true,
@@ -195,7 +205,7 @@ async function validPayload(input: {
       { departmentId: input.primary ?? departmentA, motivation },
       { departmentId: input.secondary ?? departmentB, motivation },
     ],
-    uploads: { cv, photo, studentCard: null, followEvidence, paymentEvidence },
+    uploads: { cv, photo, studentCard: null, followEvidence, paymentEvidence, senbudInstagramEvidence },
     essays: { organizationExperience: "Sintetis", contribution: "Sintetis", academicBalance: "Sintetis" },
     departmentFields: input.departmentFields ?? {},
     consent: { truthful: true, processing: true, version: "DRAFT-CONSENT-TEST" },
@@ -290,6 +300,49 @@ describe.sequential("Phase 3 registration transaction", () => {
       [result.registrationNumber],
     );
     expect(row.rows[0].portfolioUrl).toBe(driveUrl);
+  });
+
+  // "Tambahan Field Khusus Senbud".
+  it("menolak Senbud tanpa bukti upload Instagram", async () => {
+    const suffix = `senbud-missing-${randomUUID().slice(0, 8)}`;
+    const ownerToken = `owner-${suffix}`;
+    const payload = await validPayload({ ownerToken, suffix, primary: senbud });
+    await expect(
+      submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED", fieldErrors: { "uploads.senbudInstagramEvidence": expect.any(String) } });
+  });
+
+  it("menerima Senbud dengan bukti Instagram, tanpa link portofolio (opsional)", async () => {
+    const suffix = `senbud-ok-${randomUUID().slice(0, 8)}`;
+    const ownerToken = `owner-${suffix}`;
+    const payload = await validPayload({ ownerToken, suffix, primary: senbud, includeSenbudEvidence: true });
+    const result = await submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` });
+    const uploadRow = await pool.query(
+      `SELECT f.kind, f.status FROM file_uploads f JOIN candidates c ON c.id = f."candidateId"
+       WHERE c."registrationNumber" = $1 AND f.kind = 'SENBUD_INSTAGRAM'`,
+      [result.registrationNumber],
+    );
+    expect(uploadRow.rows[0]).toMatchObject({ kind: "SENBUD_INSTAGRAM", status: "FINALIZED" });
+    const supplementalRow = await pool.query(
+      `SELECT s."senbudPortfolioUrl" FROM candidate_supplemental_data s JOIN candidates c ON c.id = s."candidateId" WHERE c."registrationNumber" = $1`,
+      [result.registrationNumber],
+    );
+    expect(supplementalRow.rows[0]).toBeUndefined();
+  });
+
+  it("menyimpan link portofolio Senbud di candidate_supplemental_data ketika diisi", async () => {
+    const suffix = `senbud-portfolio-${randomUUID().slice(0, 8)}`;
+    const ownerToken = `owner-${suffix}`;
+    const payload = await validPayload({
+      ownerToken, suffix, primary: senbud, includeSenbudEvidence: true,
+      departmentFields: { senbudPortfolioUrl: driveUrl },
+    });
+    const result = await submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` });
+    const row = await pool.query(
+      `SELECT s."senbudPortfolioUrl" FROM candidate_supplemental_data s JOIN candidates c ON c.id = s."candidateId" WHERE c."registrationNumber" = $1`,
+      [result.registrationNumber],
+    );
+    expect(row.rows[0].senbudPortfolioUrl).toBe(driveUrl);
   });
 
   it("menolak upload tervalidasi milik draft lain", async () => {

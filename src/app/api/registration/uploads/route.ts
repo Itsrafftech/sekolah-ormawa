@@ -23,8 +23,9 @@ const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
 // FOLLOW_EVIDENCE added (UAT feedback - "persyaratan follow dan share"):
 // required PDF for every registrant. PAYMENT_EVIDENCE added ("Guidebook,
 // ketentuan, dan pembayaran"): required payment screenshot/receipt for
-// every registrant.
-const uploadKinds = new Set<UploadKind>(["CV", "PHOTO", "STUDENT_CARD", "FOLLOW_EVIDENCE", "PAYMENT_EVIDENCE"]);
+// every registrant. SENBUD_INSTAGRAM added ("Tambahan Field Khusus
+// Senbud"): required Instagram evidence, only when Senbud is chosen.
+const uploadKinds = new Set<UploadKind>(["CV", "PHOTO", "STUDENT_CARD", "FOLLOW_EVIDENCE", "PAYMENT_EVIDENCE", "SENBUD_INSTAGRAM"]);
 
 export async function POST(request: NextRequest) {
   try {

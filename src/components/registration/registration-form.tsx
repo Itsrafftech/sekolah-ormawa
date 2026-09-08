@@ -153,7 +153,7 @@ function emptyPayload(config: RegistrationFormConfig): RegistrationPayload {
       { departmentId: "", motivation: "" },
       { departmentId: "", motivation: "" },
     ],
-    uploads: { cv: null, photo: null, studentCard: null, followEvidence: null, paymentEvidence: null },
+    uploads: { cv: null, photo: null, studentCard: null, followEvidence: null, paymentEvidence: null, senbudInstagramEvidence: null },
     essays: { organizationExperience: "", contribution: "", academicBalance: "" },
     // Phase C - "Field Khusus Per Birdep": empty object, not per-field
     // undefined literals - all keys stay optional/absent until the
@@ -389,6 +389,18 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
         !isValidGoogleDriveUrl(payload.departmentFields.budgetPlanUrl, config.portfolioUrlMaxLength)
       ) {
         errors["departmentFields.budgetPlanUrl"] = "Link harus berupa URL Google Drive yang valid (https://drive.google.com/...).";
+      }
+      // "Tambahan Field Khusus Senbud": portfolio link tetap opsional
+      // (hanya format dicek, sama seperti RAB Komanggar di atas); bukti
+      // Instagram wajib hanya jika Senbud dipilih.
+      if (
+        payload.departmentFields.senbudPortfolioUrl &&
+        !isValidGoogleDriveUrl(payload.departmentFields.senbudPortfolioUrl, config.portfolioUrlMaxLength)
+      ) {
+        errors["departmentFields.senbudPortfolioUrl"] = "Link harus berupa URL Google Drive yang valid (https://drive.google.com/...).";
+      }
+      if (requiresSenbudPenugasan && !payload.uploads.senbudInstagramEvidence) {
+        errors["uploads.senbudInstagramEvidence"] = "Bukti upload story/post Instagram wajib diunggah karena Seni dan Budaya dipilih.";
       }
     }
     if (targetStep === 5) {
@@ -1011,8 +1023,10 @@ function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allows
   requiresSenbudPenugasan: boolean;
 }) {
   const updateEssay = (key: keyof RegistrationPayload["essays"], value: string) => mutate((current) => ({ ...current, essays: { ...current.essays, [key]: value } }));
-  const updateDriveUrl = (key: "portfolioUrl" | "budgetPlanUrl", value: string) =>
+  const updateDriveUrl = (key: "portfolioUrl" | "budgetPlanUrl" | "senbudPortfolioUrl", value: string) =>
     mutate((current) => ({ ...current, departmentFields: { ...current.departmentFields, [key]: value } }));
+  const setSenbudInstagramEvidence = (upload: UploadReference | null) =>
+    mutate((current) => ({ ...current, uploads: { ...current.uploads, senbudInstagramEvidence: upload } }));
   const essayFields = [
     ["organizationExperience", "Pengalaman organisasi sebelumnya"],
     ["contribution", "Kontribusi untuk Pilihan 1"],
@@ -1076,9 +1090,70 @@ function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allows
         </section>
       ) : null}
 
+      {/* "Tambahan Field Khusus Senbud": portofolio (opsional, link Google
+          Drive) dan bukti Instagram (wajib, upload gambar) - hanya tampil
+          ketika Senbud dipilih sebagai Pilihan 1 atau 2. Sama seperti
+          Medbrand/Komanggar di atas, tapi punya kolom
+          `senbudPortfolioUrl` sendiri (bukan `portfolioUrl`) karena
+          Medbrand/Badmedbrnd dan Senbud sama-sama EXECUTIVE dan bisa
+          dipilih bersamaan sebagai dua Pilihan yang berbeda. */}
+      {requiresSenbudPenugasan ? (
+        <section className="portfolio-section" id={fieldId("departmentFields.senbudPortfolioUrl")}>
+          <header>
+            <div><p className="eyebrow">Seni dan Budaya</p><h3>Portofolio Senbud</h3></div>
+          </header>
+          <div className="follow-evidence-instructions">
+            <p>Portofolio berisi:</p>
+            <ol>
+              <li>Biodata Diri</li>
+              <li>Pengalaman Organisasi</li>
+              <li>Bakat dan Minat (Opsional)</li>
+            </ol>
+            <p>
+              Upload portofolio ke Google Drive kamu masing-masing dan pastikan akses dibuka untuk semua orang (Anyone
+              with the link can view) sebelum memasukkan link di sini.
+            </p>
+          </div>
+          <Field
+            id="departmentFields.senbudPortfolioUrl"
+            label="Link Portofolio (Opsional)"
+            error={errors["departmentFields.senbudPortfolioUrl"]}
+            hint="Pastikan link sudah diset 'Anyone with the link can view' sebelum dikirimkan."
+          >
+            <input
+              id={`${fieldId("departmentFields.senbudPortfolioUrl")}-control`}
+              value={payload.departmentFields.senbudPortfolioUrl ?? ""}
+              onChange={(event) => updateDriveUrl("senbudPortfolioUrl", event.target.value)}
+              type="url"
+              placeholder="https://drive.google.com/..."
+              maxLength={config.portfolioUrlMaxLength}
+            />
+          </Field>
+          <div className="follow-evidence-instructions">
+            <p>Unggah screenshot bukti upload story atau post Instagram yang berkaitan dengan seni atau budaya.</p>
+          </div>
+          <div className="upload-grid">
+            <UploadField
+              config={config}
+              id="uploads.senbudInstagramEvidence"
+              label="Bukti Upload Story/Post Instagram"
+              accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+              detail="Wajib · JPG/PNG · maksimum 5 MB"
+              error={errors["uploads.senbudInstagramEvidence"]}
+              kind="SENBUD_INSTAGRAM"
+              value={payload.uploads.senbudInstagramEvidence}
+              onChange={setSenbudInstagramEvidence}
+            />
+          </div>
+        </section>
+      ) : null}
+
       {/* Penugasan khusus Senbud ("Calon Rockidz"): informasional, hanya
           tampil ketika Senbud dipilih sebagai Pilihan 1 atau 2. Bukan field
-          submit - materi disiapkan pendaftar di luar form (Drive/Reels). */}
+          submit - materi Video Kreatif disiapkan pendaftar di luar form
+          (Reels). Bullet "Portofolio — Opsional" yang dulu ada di sini
+          DIHAPUS - instruksinya digantikan field nyata Portofolio Senbud
+          di atas (bukan lagi murni teks informasional). */}
       {requiresSenbudPenugasan ? (
         <section className="portfolio-section">
           <header>
@@ -1089,10 +1164,6 @@ function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allows
             </div>
           </header>
           <ol className="penugasan-list">
-            <li>
-              <strong>Portofolio — Opsional</strong>
-              <p>Berisikan biodata diri, bakat, dan minat. Diunggah ke Google Drive.</p>
-            </li>
             <li>
               <strong>Video Kreatif — Wajib, diunggah di Reels</strong>
               <p>Berisikan: (a) biodata diri; (b) alasan memilih Senbud; (c) program kerja yang diminati dan alasannya; (d) inovasi untuk program kerja tersebut.</p>
@@ -1207,7 +1278,7 @@ function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortf
         <ReviewSection title="Jalur Pendaftaran"><dl><ReviewItem label="Jalur" value={payload.track ? TRACK_LABEL[payload.track] : "-"} /><ReviewItem label="Guidebook & ketentuan" value={payload.guidebookAcknowledged ? "Sudah dibaca" : "-"} /></dl></ReviewSection>
         <ReviewSection title="Identitas"><dl><ReviewItem label="Nama" value={payload.identity.name} /><ReviewItem label="NIM" value={payload.identity.nim} /><ReviewItem label="Angkatan / tahun masuk" value={`${payload.identity.cohortCode} / ${payload.identity.entryYear}`} /><ReviewItem label="Prodi" value={payload.identity.studyProgram} /><ReviewItem label="Kelas" value={payload.identity.className} /><ReviewItem label="WhatsApp" value={payload.identity.phone} /><ReviewItem label="Email" value={payload.identity.email} /><ReviewItem label="Domisili" value={payload.identity.domicile} /></dl></ReviewSection>
         <ReviewSection title="Pilihan Birdep">{payload.choices.map((choice, index) => <article key={index}><strong>Pilihan {index + 1} · {department(choice.departmentId)}</strong><p>{choice.motivation}</p></article>)}</ReviewSection>
-        {requiresMbti || requiresAdkesmahFocus || requiresPortfolio || allowsBudgetPlan ? (
+        {requiresMbti || requiresAdkesmahFocus || requiresPortfolio || allowsBudgetPlan || requiresSenbudPenugasan ? (
           <ReviewSection title="Data Khusus Birdep">
             <dl>
               {requiresMbti ? <ReviewItem label="Tipe MBTI" value={payload.departmentFields.komitMbti ?? ""} /> : null}
@@ -1219,11 +1290,18 @@ function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortf
               ) : null}
               {requiresPortfolio ? <ReviewItem label="Link Portofolio" value={payload.departmentFields.portfolioUrl ?? ""} /> : null}
               {allowsBudgetPlan ? <ReviewItem label="Link RAB" value={payload.departmentFields.budgetPlanUrl ?? ""} /> : null}
+              {/* "Tambahan Field Khusus Senbud". */}
+              {requiresSenbudPenugasan ? <ReviewItem label="Link Portofolio Senbud" value={payload.departmentFields.senbudPortfolioUrl ?? ""} /> : null}
             </dl>
           </ReviewSection>
         ) : null}
         {requiresSenbudPenugasan ? (
           <ReviewSection title="Penugasan Senbud">
+            {/* "Tambahan Field Khusus Senbud": status upload bukti Instagram
+                ditampilkan di sini juga (section Senbud yang sama), bukan
+                di card "Dokumen" generik di bawah - konsisten dengan
+                pemisahan Pembayaran dari Dokumen. */}
+            <ul><li>Bukti Story/Post Instagram · {payload.uploads.senbudInstagramEvidence ? `${payload.uploads.senbudInstagramEvidence.name} (${formatBytes(payload.uploads.senbudInstagramEvidence.sizeBytes)})` : "Belum ada"}</li></ul>
             <div className="review-penugasan">
               <p><strong>Pastikan sebelum mengirim:</strong> Portofolio (opsional) dan Video Kreatif (wajib) untuk Senbud sudah disiapkan.</p>
               <ul>

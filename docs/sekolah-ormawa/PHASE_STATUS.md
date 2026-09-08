@@ -1807,3 +1807,105 @@ Role baru `KETUA_PELAKSANA` ditambahkan: read-only lintas-Birdep (lihat semua ka
 ## Batas fase
 
 Seluruh 5 langkah "Urutan pengerjaan" di spek Anda (migration role/permission, permission resolver/guards, UI sidebar/switcher, script 2 akun, quality gate) sudah diimplementasikan dan didokumentasikan (ADR-049), dengan satu keterbatasan yang ditandai jelas (audit log viewer belum ada di app mana pun). Quality gate otomatis penuh lolos (typecheck, lint, 93 unit test, 152 integration test, build). Tidak ada commit yang saya jalankan. Ini bukan phase baru sesuai instruksi Anda. Pekerjaan berhenti setelah laporan ini dan menunggu persetujuan Anda - perintah server Contabo ada di bagian terpisah di bawah, TIDAK dijalankan oleh saya.
+
+# Hasil UAT - Tambahan Field Khusus Senbud
+
+## Status
+
+PASS
+
+## Ringkasan hasil
+
+Dua field baru untuk Departemen Seni dan Budaya (SENBUD), muncul dinamis di Step 4 (Esai & Portofolio) saat SENBUD dipilih sebagai Pilihan 1 atau 2 - mengikuti persis pola field khusus per-Birdep yang sudah ada (KOMIT MBTI, ADKESMAH fokus, MEDBRAND/BADMEDBRND portofolio, KOMANGG RAB).
+
+**1. Portofolio Senbud (opsional)**: input URL Google Drive, tersimpan di `CandidateSupplementalData.senbudPortfolioUrl` - kolom TERPISAH dari `portfolioUrl` (Medbrand/Badmedbrnd) karena kedua Birdep sama-sama EXECUTIVE dan bisa dipilih bersamaan sebagai Pilihan 1 dan 2 sekaligus. Instruksi form persis teks yang Anda berikan (Biodata Diri / Pengalaman Organisasi / Bakat dan Minat / cara buka akses Drive).
+
+**2. Bukti Upload Story/Post Instagram (wajib jika Senbud dipilih)**: upload JPG/PNG maksimum 5MB, `UploadKind.SENBUD_INSTAGRAM` baru, validasi MIME + magic byte di server, disimpan di private storage.
+
+**Keputusan visibilitas penting (di luar instruksi literal)**: berbeda dari upload generik lain (CV/PHOTO/FOLLOW_EVIDENCE/PAYMENT_EVIDENCE - terlihat oleh PJ manapun yang bisa melihat kandidat), bukti Instagram Senbud saya scope KE DEPARTMENT seperti field Data Khusus Birdep lainnya - `getCandidateDetail()` mengeluarkannya dari daftar upload generik dan hanya menyertakannya untuk viewer dengan `departmentId` Senbud. PJ Birdep lain yang kandidatnya sama TIDAK PERNAH menerima referensi file itu dari API sama sekali (bukan cuma disembunyikan di tampilan) - dijelaskan lengkap di ADR-050.
+
+**Teks lama diganti**: bullet "Portofolio — Opsional" (berisi teks lama yang Anda flag) di section informasional "Penugasan khusus · Calon Rockidz" saya HAPUS sepenuhnya (bukan sekadar ganti teks) - instruksinya sekarang ada di field nyata yang baru dengan instruksi lengkap sesuai spek Anda. Bagian lain section itu (Video Kreatif Reels, catatan format nama file) tidak disentuh.
+
+**Backfill**: TIDAK ADA yang dilakukan - saya cek langsung ke database dan memastikan nol kandidat fixture yang ada memilih SENBUD, jadi tidak ada baris yang butuh placeholder.
+
+## Perubahan utama
+
+| File/modul | Tujuan perubahan |
+|---|---|
+| `prisma/migrations/20260908100000_senbud_supplemental_fields/` | Migration baru: kolom `senbudPortfolioUrl` + enum value `SENBUD_INSTAGRAM`; rollback didokumentasikan lengkap |
+| `docs/sekolah-ormawa/DECISIONS.md` | ADR-050 - dokumentasi lengkap: alasan kolom terpisah, keputusan visibilitas department-scoped, cara penanganan teks lama, alasan tidak backfill, alasan reuse flag `requiresSenbudPenugasan` |
+| `docs/sekolah-ormawa/RUNBOOK.md` | Migration list bertambah 1 baris (migration ke-17) |
+| `prisma/schema.prisma` | `CandidateSupplementalData.senbudPortfolioUrl` (nullable); `UploadKind` +`SENBUD_INSTAGRAM` + update doc comment enum |
+| `src/features/registration/contracts.ts` | `UploadReference.kind`/`uploads.senbudInstagramEvidence`/`departmentFields.senbudPortfolioUrl` baru |
+| `src/features/registration/validation.ts` | Schema Zod +`senbudInstagramEvidence`/`senbudPortfolioUrl`; requiredness (Instagram wajib jika Senbud dipilih) + format URL (opsional, hanya dicek jika diisi) |
+| `src/features/registration/file-validation.ts` | `policyFor("SENBUD_INSTAGRAM")` - JPG/PNG saja, 5MB |
+| `src/app/api/registration/uploads/route.ts` | Set kind yang diterima +`SENBUD_INSTAGRAM` |
+| `src/server/registration/submit.ts` | Requiredness authoritative (fresh DB data) untuk bukti Instagram; `senbudPortfolioUrl` masuk `candidateSupplementalData.create()` |
+| `src/components/registration/registration-form.tsx` | Section baru Portofolio Senbud (Field + UploadField) di Step 4, reuse `requiresSenbudPenugasan`; bullet teks lama dihapus; ReviewStep (Step 7) menampilkan keduanya |
+| `src/features/candidates/contracts.ts` | `CandidateUploadSummary.kind` +`SENBUD_INSTAGRAM`; `CandidateSupplementalSummary` +`senbudPortfolioUrl`/`senbudInstagramEvidence` |
+| `src/server/candidates/detail.ts` | `senbudInstagramEvidence` dikeluarkan dari daftar `uploads` generik, di-scope ke viewer Senbud saja di `supplemental` |
+| `src/app/admin/dashboard/kandidat/[id]/page.tsx` | Kartu "Data Khusus Birdep" menampilkan link portofolio Senbud + link bukti Instagram (via signed URL) |
+| `tests/unit/registration-validation.test.ts`, `tests/unit/upload-security.test.ts` | Test baru: requiredness, format URL, policy file JPG/PNG 5MB |
+| `tests/integration/registration-flow.test.ts`, `load-performance.test.ts` | Fixture department Senbud + 3 test baru (tolak tanpa bukti, terima dengan bukti, simpan portofolio ke DB) |
+
+## Acceptance criteria
+
+| Kriteria | Status | Bukti |
+|---|---|---|
+| Field Portofolio Senbud muncul di Step 4 saat SENBUD dipilih (P1 atau P2) | PASS | Reuse `requiresSenbudPenugasan` (trigger identik: SENBUD di salah satu pilihan) |
+| Label/placeholder/instruksi persis spek | PASS | Dibaca ulang terhadap teks yang Anda berikan, kata per kata |
+| Validasi: harus URL Google Drive jika diisi | PASS | `isValidGoogleDriveUrl()` (fungsi yang sama dipakai Medbrand/Komanggar); unit test menolak host non-Drive |
+| Tampil di dashboard PJ Senbud | PASS | Kartu "Data Khusus Birdep", scoped ke `viewerCode === "SENBUD"` |
+| Bukti Instagram wajib jika SENBUD dipilih | PASS | Unit + integration test: submit tanpa bukti -> `VALIDATION_FAILED` |
+| Validasi MIME dan magic byte di server | PASS | `validateUploadFile()` - unit test menolak PDF dan file di atas 5MB |
+| Simpan di private storage | PASS | Mekanisme `FileUpload`/private storage yang sama seperti CV/PAYMENT_EVIDENCE, tidak ada jalur baru |
+| Tampil di dashboard PJ Senbud via signed URL | PASS | `fileHref()` (route viewer yang sudah terautorisasi) - HANYA muncul untuk viewer Senbud |
+| Field hanya muncul jika SENBUD Pilihan 1 atau 2 | PASS | Trigger sama seperti section informasional Senbud yang sudah ada |
+| Validasi wajib hanya aktif jika SENBUD dipilih | PASS | `senbudSelected` re-check terhadap data DB segar di `submit.ts` (bukan hanya fast-fail client) |
+| Draft localStorage simpan URL, tidak simpan file | PASS | `departmentFields` (termasuk `senbudPortfolioUrl`) ada di `DraftPayload`; `uploads` tetap tidak pernah masuk draft (ADR-019) |
+| Super Admin bisa lihat semua | PASS | Sama seperti field Data Khusus Birdep lain - Super Admin bisa switch department ke Senbud dan melihatnya |
+| Teks lama diganti sesuai instruksi baru | PASS | Bullet lama dihapus total, digrep ulang - nol kecocokan tersisa di repo |
+| Kolom `senbudPortfolioUrl`, enum `SENBUD_INSTAGRAM`, migration rollback-able, backfill | PASS | Lihat "Migration dan konfigurasi" |
+| Typecheck, lint, unit test, integration test, build PASS | PASS | Lihat tabel verifikasi |
+
+## Verifikasi yang dijalankan
+
+| Perintah/skenario | Hasil |
+|---|---|
+| `npx prisma migrate deploy` (dev+test) + `migrate diff --exit-code` (dev+test) | PASS; nol drift |
+| `npx prisma generate` | PASS; Prisma Client 7.9.1 diregenerasi dengan `SENBUD_INSTAGRAM`/`senbudPortfolioUrl` |
+| `npx tsc --noEmit` | PASS; 0 error |
+| `npx eslint . --max-warnings 0` | PASS; 0 warning |
+| `npm run test` (unit) | PASS; 13 file, **98/98** (naik dari 93 - 5 test baru: requiredness Instagram, format URL portofolio opsional, policy file JPG/PNG 5MB) |
+| `npm run test:integration` | PASS; 15 file, **155/155** (naik dari 152 - 3 test baru: tolak Senbud tanpa bukti Instagram, terima dengan bukti tanpa portofolio, simpan `senbudPortfolioUrl` ke DB) |
+| `npm run build` (dengan env dummy MinIO/Resend) | PASS |
+| Query DB langsung: cek kandidat fixture existing dengan pilihan SENBUD | PASS; nol baris - konfirmasi tidak ada yang perlu di-backfill |
+| Grep sweep penuh repo untuk teks lama "Berisikan biodata diri, bakat, dan minat..." | PASS; nol kecocokan tersisa |
+
+## Migration dan konfigurasi
+
+- Migration baru: `20260908100000_senbud_supplemental_fields` - diterapkan ke dev+test, nol drift dikonfirmasi. **Belum diterapkan ke production.**
+- Tidak ada env var baru.
+- Tidak ada commit yang saya jalankan - seluruh perubahan masih di working tree, unstaged.
+
+## Risiko, asumsi, dan technical debt
+
+- **`RegistrationFormConfig.departments[].requiresSenbudFields` tidak ditambahkan** - sempat saya coba, lalu saya batalkan setelah menemukan bahwa flag serupa yang sudah ada (`requiresPortfolio`/`requiresMbti`/dst.) TIDAK PERNAH benar-benar dikonsumsi oleh form client (form menghitung ulang sendiri dari `PublicDepartmentOption.code`) - menambah flag baru di sana hanya akan jadi dead code mengikuti pola yang sudah setengah-mati. Field baru ini reuse `requiresSenbudPenugasan` yang sudah ada dan benar-benar dipakai. Ditandai di sini agar tidak membingungkan jika ada yang mencari flag itu di config nanti.
+- Section informasional "Penugasan khusus · Calon Rockidz" (Video Kreatif di Reels, catatan format nama file Google Drive) TIDAK disentuh - di luar cakupan permintaan ini, tetap sepenuhnya informasional/eksternal seperti sebelumnya.
+- Export CSV kandidat TIDAK menyertakan `senbudPortfolioUrl`/bukti Instagram - konsisten dengan field Data Khusus Birdep LAIN (komitMbti/adkesmahFocus/portfolioUrl/budgetPlanUrl juga semuanya tidak ada di export saat ini), bukan pengecualian baru.
+
+## Cara saya memeriksa hasil
+
+1. `npx prisma migrate diff --exit-code` terhadap dev+test setelah apply - nol drift.
+2. `npx tsc --noEmit && npx eslint . --max-warnings 0 && npm run test && npm run test:integration && npm run build`.
+3. Query DB langsung (psql) untuk memastikan tidak ada kandidat fixture existing yang memilih SENBUD sebelum menyimpulkan backfill tidak diperlukan.
+4. Membaca ulang `submit.ts`/`validation.ts`/`detail.ts`/`registration-form.tsx`/`page.tsx` untuk memastikan requiredness selalu dihitung ulang server-side (bukan cuma dipercaya dari client) dan visibilitas Instagram evidence benar-benar department-scoped, bukan cuma disembunyikan di UI.
+5. Grep sweep penuh repo untuk teks lama yang harus diganti, memastikan nol kecocokan tersisa.
+
+## Keputusan yang dibutuhkan
+
+Tidak ada blocker. ADR-050 mendokumentasikan seluruh deviasi/keputusan arsitektur (kolom terpisah, visibilitas department-scoped, reuse flag, tidak backfill) untuk ditinjau bila perlu.
+
+## Batas fase
+
+Seluruh 5 langkah "Urutan pengerjaan" di spek Anda (migration, validasi server, form Step 4, dashboard PJ Senbud, quality gate) sudah diimplementasikan dan didokumentasikan (ADR-050). Quality gate otomatis penuh lolos (typecheck, lint, 98 unit test, 155 integration test, build). Tidak ada commit yang saya jalankan. Ini bukan phase baru sesuai instruksi Anda. Pekerjaan berhenti setelah laporan ini dan menunggu persetujuan Anda - perintah deploy server Contabo ada di bagian terpisah di bawah, TIDAK dijalankan oleh saya.

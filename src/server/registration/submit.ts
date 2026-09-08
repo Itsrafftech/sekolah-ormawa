@@ -271,6 +271,7 @@ export async function submitRegistration(input: {
         payload.uploads.studentCard?.id,
         payload.uploads.followEvidence?.id,
         payload.uploads.paymentEvidence?.id,
+        payload.uploads.senbudInstagramEvidence?.id,
       ].filter((value): value is string => Boolean(value));
       if (new Set(allUploadIds).size !== allUploadIds.length) {
         throw new RegistrationSubmissionError(
@@ -305,7 +306,8 @@ export async function submitRegistration(input: {
         !payload.uploads.photo || kindById.get(payload.uploads.photo.id) !== "PHOTO" ||
         (payload.uploads.studentCard && kindById.get(payload.uploads.studentCard.id) !== "STUDENT_CARD") ||
         !payload.uploads.followEvidence || kindById.get(payload.uploads.followEvidence.id) !== "FOLLOW_EVIDENCE" ||
-        !payload.uploads.paymentEvidence || kindById.get(payload.uploads.paymentEvidence.id) !== "PAYMENT_EVIDENCE"
+        !payload.uploads.paymentEvidence || kindById.get(payload.uploads.paymentEvidence.id) !== "PAYMENT_EVIDENCE" ||
+        (payload.uploads.senbudInstagramEvidence && kindById.get(payload.uploads.senbudInstagramEvidence.id) !== "SENBUD_INSTAGRAM")
       ) {
         throw new RegistrationSubmissionError(
           "Jenis upload tidak sesuai field dokumen.",
@@ -351,6 +353,19 @@ export async function submitRegistration(input: {
           422,
           "ADKESMAH_FOCUS_REQUIRED",
           { "departmentFields.adkesmahFocus": "Pilih bidang fokus kamu." },
+        );
+      }
+      // "Tambahan Field Khusus Senbud": Instagram evidence upload wajib
+      // hanya jika Senbud benar-benar dipilih - portfolio link tetap
+      // opsional (formatnya sudah dicek oleh validateRegistrationPayload
+      // di atas, tidak perlu diulang di sini).
+      const senbudSelected = selectedDepartments.some(({ department }) => department.code === "SENBUD");
+      if (senbudSelected && !payload.uploads.senbudInstagramEvidence) {
+        throw new RegistrationSubmissionError(
+          "Bukti upload story/post Instagram wajib untuk pilihan Seni dan Budaya.",
+          422,
+          "SENBUD_INSTAGRAM_REQUIRED",
+          { "uploads.senbudInstagramEvidence": "Unggah bukti story/post Instagram kamu." },
         );
       }
 
@@ -409,7 +424,8 @@ export async function submitRegistration(input: {
       // write rows nobody needed".
       if (
         payload.departmentFields.komitMbti || payload.departmentFields.adkesmahFocus ||
-        payload.departmentFields.portfolioUrl || payload.departmentFields.budgetPlanUrl
+        payload.departmentFields.portfolioUrl || payload.departmentFields.budgetPlanUrl ||
+        payload.departmentFields.senbudPortfolioUrl
       ) {
         await transaction.candidateSupplementalData.create({
           data: {
@@ -418,6 +434,7 @@ export async function submitRegistration(input: {
             adkesmahFocus: payload.departmentFields.adkesmahFocus ?? null,
             portfolioUrl: payload.departmentFields.portfolioUrl ?? null,
             budgetPlanUrl: payload.departmentFields.budgetPlanUrl ?? null,
+            senbudPortfolioUrl: payload.departmentFields.senbudPortfolioUrl ?? null,
           },
         });
       }
@@ -466,6 +483,7 @@ export async function submitRegistration(input: {
             registrationNumber,
             hasPortfolioUrl: Boolean(payload.departmentFields.portfolioUrl),
             hasBudgetPlanUrl: Boolean(payload.departmentFields.budgetPlanUrl),
+            hasSenbudPortfolioUrl: Boolean(payload.departmentFields.senbudPortfolioUrl),
           },
         },
       });

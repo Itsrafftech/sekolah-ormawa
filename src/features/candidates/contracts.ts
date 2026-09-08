@@ -54,10 +54,14 @@ export type CandidateListResult = {
 // FOLLOW_EVIDENCE added (UAT feedback - "persyaratan follow dan share"):
 // required PDF for every registrant. PAYMENT_EVIDENCE added ("Guidebook,
 // ketentuan, dan pembayaran"): required payment screenshot/receipt for
-// every registrant.
+// every registrant. SENBUD_INSTAGRAM added ("Tambahan Field Khusus
+// Senbud"): required Instagram evidence, only when Senbud is chosen -
+// department-scoped for viewing (see CandidateSupplementalSummary.
+// senbudInstagramEvidence below), so it's excluded from the plain
+// `uploads` list this type is normally used for.
 export type CandidateUploadSummary = {
   id: string;
-  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE" | "PAYMENT_EVIDENCE";
+  kind: "CV" | "PHOTO" | "STUDENT_CARD" | "FOLLOW_EVIDENCE" | "PAYMENT_EVIDENCE" | "SENBUD_INSTAGRAM";
   originalFileName: string;
   sizeBytes: number;
   detectedMimeType: string | null;
@@ -115,11 +119,19 @@ export type CandidatePlacementSummary = {
 // Phase D (ADR-045): portfolioUrl (Medbrand/Badmedbrnd) and budgetPlanUrl
 // (Komanggar) are plain Google Drive URL strings, scoped the same way as
 // komitMbti/adkesmahFocus - no more CandidateUploadSummary/file involved.
+// "Tambahan Field Khusus Senbud": senbudPortfolioUrl follows the exact
+// same plain-string pattern (scoped to SENBUD); senbudInstagramEvidence
+// is the one supplemental field that IS still a file (department-scoped
+// unlike CV/PHOTO/etc., which any co-viewing PJ can see) - a full
+// CandidateUploadSummary so the UI can build a signed file-viewer link
+// from it, same as the payment/document cards do for other upload kinds.
 export type CandidateSupplementalSummary = {
   komitMbti: string | null;
   adkesmahFocus: "ADVOCACY" | "WELFARE" | null;
   portfolioUrl: string | null;
   budgetPlanUrl: string | null;
+  senbudPortfolioUrl: string | null;
+  senbudInstagramEvidence: CandidateUploadSummary | null;
 };
 
 export type CandidateSelectionDetail = {
