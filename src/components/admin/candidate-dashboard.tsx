@@ -42,7 +42,10 @@ function selectionBadge(selection: CandidateSelectionInfo | null): { label: stri
 }
 
 type CandidateDashboardProps = {
-  role: "SUPER_ADMIN" | "DEPT_PJ";
+  // "Tambah Role Baru dan 2 Akun": KETUA_PELAKSANA dapat department
+  // switcher seperti SUPER_ADMIN (read-only) - lihat detailHref/switcher
+  // di bawah, keduanya dicek lewat `role !== "DEPT_PJ"`.
+  role: "SUPER_ADMIN" | "DEPT_PJ" | "KETUA_PELAKSANA";
   departmentId: string;
   departments: DepartmentOption[];
   periodName: string | null;
@@ -144,7 +147,7 @@ export function CandidateDashboard({
 
   const detailHref = useMemo(
     () => (id: string) =>
-      role === "SUPER_ADMIN"
+      role !== "DEPT_PJ"
         ? `/admin/dashboard/kandidat/${id}?departmentId=${departmentId}`
         : `/admin/dashboard/kandidat/${id}`,
     [role, departmentId],
@@ -160,7 +163,7 @@ export function CandidateDashboard({
           </h2>
         </div>
         <div className="candidate-dashboard__heading-actions">
-          {role === "SUPER_ADMIN" && departments.length > 0 ? (
+          {role !== "DEPT_PJ" && departments.length > 0 ? (
             <label className="candidate-dashboard__dept-switch">
               <span>Birdep</span>
               <select

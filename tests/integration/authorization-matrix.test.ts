@@ -16,6 +16,8 @@ const deptB = "84200000-0000-4000-8000-000000000002";
 const studyProgramId = "84300000-0000-4000-8000-000000000001";
 const superAdminId = "84400000-0000-4000-8000-000000000001";
 const pjAId = "84400000-0000-4000-8000-000000000002";
+// "Tambah Role Baru dan 2 Akun".
+const ketuaPelaksanaId = "84400000-0000-4000-8000-000000000003";
 const candidateInB = "84500000-0000-4000-8000-000000000001";
 
 let hashPassword: typeof import("@/lib/auth/password").hashPassword;
@@ -81,7 +83,8 @@ beforeAll(async () => {
   await pool.query(`
     INSERT INTO roles (code, name, description, "isSystem", "createdAt", "updatedAt")
     VALUES ('SUPER_ADMIN', 'Super Admin', 'Fixture', true, now(), now()),
-           ('DEPT_PJ', 'PJ', 'Fixture', true, now(), now())
+           ('DEPT_PJ', 'PJ', 'Fixture', true, now(), now()),
+           ('KETUA_PELAKSANA', 'Ketua Pelaksana', 'Fixture', true, now(), now())
   `);
   await pool.query(
     `INSERT INTO departments (id, code, name, "shortName", "unitType", "sortOrder", "isActive", "configStatus", "createdAt", "updatedAt")
@@ -104,6 +107,7 @@ beforeAll(async () => {
   for (const [id, role, dept] of [
     [superAdminId, "SUPER_ADMIN", null],
     [pjAId, "DEPT_PJ", deptA],
+    [ketuaPelaksanaId, "KETUA_PELAKSANA", null],
   ] as const) {
     await pool.query(
       `INSERT INTO users (id, name, email, "emailVerified", role, banned, "isActive", "mustChangePassword", "departmentId", "sessionVersion", "createdAt", "updatedAt")
@@ -237,6 +241,56 @@ describe("Session revoked -> 401 di seluruh admin route", () => {
       new Request(`${appOrigin}/api/admin/candidates?segment=PRIMARY&departmentId=${deptA}`, { headers: headers(cookie) }),
     );
     expect(response.status).toBe(401);
+  });
+});
+
+describe("KETUA_PELAKSANA - BISA lintas-Birdep read-only, export, broadcast (\"Tambah Role Baru dan 2 Akun\")", () => {
+  it("bisa lihat list dan detail kandidat lintas-Birdep tanpa scope tetap", async () => {
+    const cookie = await login(`${ketuaPelaksanaId}@example.test`);
+
+    const listResponse = await candidatesListGET(
+      new Request(`${appOrigin}/api/admin/candidates?segment=PRIMARY&departmentId=${deptB}`, { headers: headers(cookie) }),
+    );
+    expect(listResponse.status).toBe(200);
+
+    const detailResponse = await candidateDetailGET(
+      new Request(`${appOrigin}/api/admin/candidates/${candidateInB}?departmentId=${deptB}`, { headers: headers(cookie) }),
+      { params: Promise.resolve({ id: candidateInB }) },
+    );
+    expect(detailResponse.status).toBe(200);
+  });
+
+  it("bisa akses broadcast preview", async () => {
+    const cookie = await login(`${ketuaPelaksanaId}@example.test`);
+    const response = await broadcastPreviewPOST(new Request(`${appOrigin}/api/admin/broadcast/preview`, {
+      method: "POST", headers: headers(cookie), body: JSON.stringify({ filter: { periodId }, content: { subject: "Pengumuman", body: "Isi pesan sintetis untuk Ketua Pelaksana." } }),
+    }));
+    expect(response.status).toBe(200);
+  });
+});
+
+describe("KETUA_PELAKSANA - TIDAK BISA kelola akun/periode/override (\"Tambah Role Baru dan 2 Akun\")", () => {
+  it("akun -> 403", async () => {
+    const cookie = await login(`${ketuaPelaksanaId}@example.test`);
+    const response = await accountsGET(new Request(`${appOrigin}/api/admin/accounts`, { headers: headers(cookie) }));
+    expect(response.status).toBe(403);
+  });
+
+  it("periode -> 403", async () => {
+    const cookie = await login(`${ketuaPelaksanaId}@example.test`);
+    const response = await periodsGET(new Request(`${appOrigin}/api/admin/periods`, { headers: headers(cookie) }));
+    expect(response.status).toBe(403);
+  });
+
+  it("override lock -> 403", async () => {
+    const cookie = await login(`${ketuaPelaksanaId}@example.test`);
+    const response = await overridePOST(
+      new Request(`${appOrigin}/api/admin/candidates/${candidateInB}/override`, {
+        method: "POST", headers: headers(cookie), body: JSON.stringify({ reason: "percobaan override oleh Ketua Pelaksana" }),
+      }),
+      { params: Promise.resolve({ id: candidateInB }) },
+    );
+    expect(response.status).toBe(403);
   });
 });
 

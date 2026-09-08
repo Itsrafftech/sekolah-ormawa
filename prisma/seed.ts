@@ -31,6 +31,14 @@ const roleFixtures = [
     name: "PJ Birdep",
     description: "Mengelola kandidat dalam satu scope Birdep.",
   },
+  // "Tambah Role Baru dan 2 Akun": read-only lintas-Birdep + broadcast +
+  // audit log, tanpa akses kelola periode/akun/override/delete (tetap
+  // SUPER_ADMIN-only) - lihat ADR terkait di DECISIONS.md.
+  {
+    code: "KETUA_PELAKSANA",
+    name: "Ketua Pelaksana",
+    description: "Meninjau seluruh Birdep secara read-only, export, dan broadcast tanpa hak administratif.",
+  },
 ] as const;
 
 const permissionFixtures = [
@@ -64,6 +72,39 @@ const permissionFixtures = [
     description: "Membuat export kandidat dalam scope Birdep sendiri.",
     module: "export",
   },
+  // "Tambah Role Baru dan 2 Akun": permission baru khusus KETUA_PELAKSANA
+  // (SUPER_ADMIN juga mendapatkannya lewat allPermissionCodes di bawah).
+  {
+    code: "sekolah.candidate.read.all",
+    name: "Lihat Semua Kandidat",
+    description: "Melihat kandidat lintas seluruh Birdep tanpa filter scope.",
+    module: "candidate",
+  },
+  {
+    code: "sekolah.export.all",
+    name: "Export Semua Birdep",
+    description: "Membuat export kandidat lintas seluruh Birdep.",
+    module: "export",
+  },
+  {
+    code: "sekolah.broadcast.send",
+    name: "Kirim Broadcast",
+    description: "Mengirim broadcast email ke kandidat.",
+    module: "broadcast",
+  },
+  {
+    code: "sekolah.logs.read",
+    name: "Lihat Audit Log",
+    description: "Melihat riwayat audit log sistem.",
+    module: "audit",
+  },
+] as const;
+
+const KETUA_PELAKSANA_PERMISSION_CODES = [
+  "sekolah.candidate.read.all",
+  "sekolah.export.all",
+  "sekolah.broadcast.send",
+  "sekolah.logs.read",
 ] as const;
 
 const departmentFixtures = [
@@ -159,8 +200,14 @@ async function seed() {
   }
 
   const allPermissionCodes = permissionFixtures.map(({ code }) => code);
+  // DEPT_PJ keeps its original "own Birdep" scope only - never
+  // sekolah.admin.all, and never the new KETUA_PELAKSANA-only "all Birdep"
+  // permissions added above (those are exclusively for KETUA_PELAKSANA/
+  // SUPER_ADMIN, not a DEPT_PJ upgrade).
   const pjPermissionCodes = allPermissionCodes.filter(
-    (code) => code !== "sekolah.admin.all",
+    (code) =>
+      code !== "sekolah.admin.all" &&
+      !(KETUA_PELAKSANA_PERMISSION_CODES as readonly string[]).includes(code),
   );
 
   for (const permissionCode of allPermissionCodes) {
@@ -186,6 +233,19 @@ async function seed() {
       },
       update: {},
       create: { roleCode: "DEPT_PJ", permissionCode },
+    });
+  }
+
+  for (const permissionCode of KETUA_PELAKSANA_PERMISSION_CODES) {
+    await prisma.rolePermission.upsert({
+      where: {
+        roleCode_permissionCode: {
+          roleCode: "KETUA_PELAKSANA",
+          permissionCode,
+        },
+      },
+      update: {},
+      create: { roleCode: "KETUA_PELAKSANA", permissionCode },
     });
   }
 

@@ -1,6 +1,6 @@
 import { parseCandidateListQuery } from "@/features/candidates/validation";
 import { authErrorResponse } from "@/server/auth/api-response";
-import { requireAuthenticatedUser, requirePermission } from "@/server/auth/guard";
+import { requireAnyPermission, requireAuthenticatedUser } from "@/server/auth/guard";
 import { noStoreJson } from "@/server/auth/http";
 import { listCandidatesForDepartment } from "@/server/candidates/list";
 import { resolveDashboardPeriod } from "@/server/candidates/period";
@@ -9,7 +9,7 @@ import { resolveRequestDepartmentId } from "@/server/candidates/request-scope";
 export async function GET(request: Request) {
   try {
     const context = await requireAuthenticatedUser(request.headers);
-    await requirePermission(context, "sekolah.candidate.read.own_birdep", request.headers);
+    await requireAnyPermission(context, ["sekolah.candidate.read.own_birdep", "sekolah.candidate.read.all"], request.headers);
     const departmentId = await resolveRequestDepartmentId(context, request);
 
     const parsed = parseCandidateListQuery(new URL(request.url).searchParams);

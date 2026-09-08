@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { BroadcastComposer } from "@/components/admin/broadcast-composer";
+import { hasSchoolPermission, SCHOOL_PERMISSIONS } from "@/lib/auth/permissions";
 import { requireAdminPage } from "@/server/auth/page-guard";
 import { listCandidateOwningDepartments } from "@/server/candidates/departments";
 import { resolveDashboardPeriod } from "@/server/candidates/period";
@@ -11,7 +12,8 @@ export const dynamic = "force-dynamic";
 
 export default async function BroadcastPage() {
   const context = await requireAdminPage();
-  if (context.role !== "SUPER_ADMIN") redirect("/admin/tidak-berwenang");
+  // "Tambah Role Baru dan 2 Akun": KETUA_PELAKSANA juga boleh broadcast.
+  if (!hasSchoolPermission(context.role, SCHOOL_PERMISSIONS.BROADCAST_SEND)) redirect("/admin/tidak-berwenang");
 
   const [period, departments] = await Promise.all([
     resolveDashboardPeriod(),

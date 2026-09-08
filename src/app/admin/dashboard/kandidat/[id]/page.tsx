@@ -51,7 +51,9 @@ export default async function CandidateDetailPage({ params, searchParams }: Page
   if (!candidate) notFound();
 
   const notes = (await listDepartmentNotes(id, departmentId)) ?? [];
-  const backHref = context.role === "SUPER_ADMIN" ? `/admin/dashboard?departmentId=${departmentId}` : "/admin/dashboard";
+  // "Tambah Role Baru dan 2 Akun": KETUA_PELAKSANA juga pakai department
+  // switcher (query param), jadi backHref sama seperti SUPER_ADMIN.
+  const backHref = context.role !== "DEPT_PJ" ? `/admin/dashboard?departmentId=${departmentId}` : "/admin/dashboard";
   const fileHref = (fileId: string) => `/api/admin/candidates/${id}/files/${fileId}?departmentId=${departmentId}`;
   // "Perubahan Sistem Pembayaran": kartu "Pembayaran" sekarang hanya
   // menampilkan bukti pembayaran (kode unik/total dihapus - nominal sama

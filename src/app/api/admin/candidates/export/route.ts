@@ -1,6 +1,6 @@
 import { buildCandidateExportCsv } from "@/server/candidates/export";
 import { authErrorResponse } from "@/server/auth/api-response";
-import { requireAuthenticatedUser, requirePermission } from "@/server/auth/guard";
+import { requireAnyPermission, requireAuthenticatedUser } from "@/server/auth/guard";
 import { consumeAuthRateLimit } from "@/server/auth/rate-limit";
 import { clientIpHash } from "@/server/auth/security";
 import { resolveDashboardPeriod } from "@/server/candidates/period";
@@ -9,7 +9,7 @@ import { resolveRequestDepartmentId } from "@/server/candidates/request-scope";
 export async function GET(request: Request) {
   try {
     const context = await requireAuthenticatedUser(request.headers);
-    await requirePermission(context, "sekolah.export.own_birdep", request.headers);
+    await requireAnyPermission(context, ["sekolah.export.own_birdep", "sekolah.export.all"], request.headers);
     const departmentId = await resolveRequestDepartmentId(context, request);
     await consumeAuthRateLimit({
       scope: "ADMIN_EXPORT",

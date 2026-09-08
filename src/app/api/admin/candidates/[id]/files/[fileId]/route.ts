@@ -1,5 +1,5 @@
 import { authErrorResponse } from "@/server/auth/api-response";
-import { requireAuthenticatedUser, requirePermission } from "@/server/auth/guard";
+import { requireAnyPermission, requireAuthenticatedUser } from "@/server/auth/guard";
 import { consumeAuthRateLimit } from "@/server/auth/rate-limit";
 import { clientIpHash } from "@/server/auth/security";
 import { readScopedCandidateFile } from "@/server/candidates/files";
@@ -11,7 +11,7 @@ export async function GET(request: Request, routeContext: RouteContext) {
   try {
     const { id, fileId } = await routeContext.params;
     const context = await requireAuthenticatedUser(request.headers);
-    await requirePermission(context, "sekolah.candidate.read.own_birdep", request.headers);
+    await requireAnyPermission(context, ["sekolah.candidate.read.own_birdep", "sekolah.candidate.read.all"], request.headers);
     const departmentId = await resolveRequestDepartmentId(context, request);
     await consumeAuthRateLimit({
       scope: "ADMIN_FILE_ACCESS",

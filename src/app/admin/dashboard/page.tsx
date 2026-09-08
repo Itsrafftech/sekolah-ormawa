@@ -3,6 +3,7 @@ import { KeyRound, Megaphone, ShieldAlert, ShieldCheck, UserCog, UserRoundCheck 
 
 import { CandidateDashboard } from "@/components/admin/candidate-dashboard";
 import { SessionActions } from "@/components/auth/session-actions";
+import { hasAllDepartmentAccess, hasSchoolPermission, SCHOOL_PERMISSIONS } from "@/lib/auth/permissions";
 import { requireAdminPage } from "@/server/auth/page-guard";
 import { listCandidateOwningDepartments } from "@/server/candidates/departments";
 import { listCandidatesForDepartment } from "@/server/candidates/list";
@@ -18,7 +19,9 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
   const context = await requireAdminPage();
   const { departmentId: requestedDepartmentId } = await searchParams;
 
-  const departments = context.role === "SUPER_ADMIN" ? await listCandidateOwningDepartments() : [];
+  // "Tambah Role Baru dan 2 Akun": KETUA_PELAKSANA juga dapat department
+  // switcher, seperti SUPER_ADMIN.
+  const departments = hasAllDepartmentAccess(context.role) ? await listCandidateOwningDepartments() : [];
   const departmentId: string | null =
     context.role === "DEPT_PJ"
       ? context.departmentId
@@ -65,7 +68,7 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
         />
       ) : (
         <p className="candidate-dashboard__empty">
-          {context.role === "SUPER_ADMIN"
+          {hasAllDepartmentAccess(context.role)
             ? "Belum ada Birdep aktif untuk ditinjau."
             : "Scope Birdep tidak tersedia untuk akun ini."}
         </p>
@@ -76,10 +79,17 @@ export default async function AdminDashboardPage({ searchParams }: PageProps) {
         <ol>{context.permissions.map((permission, index) => <li key={permission}><span>{String(index + 1).padStart(2, "0")}</span><code>{permission}</code></li>)}</ol>
       </section>
 
+      {/* "Tambah Role Baru dan 2 Akun": "Kelola akun PJ" dan "Periode &
+          override lock" tetap eksklusif SUPER_ADMIN; "Broadcast" juga
+          terbuka untuk KETUA_PELAKSANA (sekolah.broadcast.send). */}
       {context.role === "SUPER_ADMIN" ? (
         <section className="admin-shell-actions">
           <Link href="/admin/dashboard/akun"><UserCog aria-hidden="true" size={17} /> Kelola akun PJ</Link>
           <Link href="/admin/dashboard/periode"><ShieldAlert aria-hidden="true" size={17} /> Periode &amp; override lock</Link>
+        </section>
+      ) : null}
+      {hasSchoolPermission(context.role, SCHOOL_PERMISSIONS.BROADCAST_SEND) ? (
+        <section className="admin-shell-actions">
           <Link href="/admin/dashboard/broadcast"><Megaphone aria-hidden="true" size={17} /> Broadcast</Link>
         </section>
       ) : null}

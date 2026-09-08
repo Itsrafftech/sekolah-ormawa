@@ -4,6 +4,7 @@ import { headers as nextHeaders } from "next/headers";
 
 import { auth } from "@/lib/auth";
 import {
+  hasAllDepartmentAccess,
   hasSchoolPermission,
   isAppRole,
   permissionsForRole,
@@ -86,9 +87,12 @@ export async function requireAuthenticatedUser(
     await invalidateSession(record.id);
     throw new AuthServiceError("INVALID_DEPARTMENT_SCOPE", 403, "Scope Birdep tidak valid.");
   }
-  if (user.role === "SUPER_ADMIN" && user.departmentId) {
+  // "Tambah Role Baru dan 2 Akun": KETUA_PELAKSANA, seperti SUPER_ADMIN,
+  // tidak boleh punya departmentId - keduanya melihat lintas-Birdep lewat
+  // department switcher, bukan lewat scope tetap di sesi.
+  if (user.role !== "DEPT_PJ" && user.departmentId) {
     await invalidateSession(record.id);
-    throw new AuthServiceError("INVALID_DEPARTMENT_SCOPE", 403, "Scope Super Admin tidak valid.");
+    throw new AuthServiceError("INVALID_DEPARTMENT_SCOPE", 403, "Scope pengguna tidak valid.");
   }
   if (
     user.mustChangePassword &&
@@ -158,6 +162,26 @@ export async function requirePermission(
   return context;
 }
 
+/**
+ * Like requirePermission, but passes as soon as the role holds ANY one of
+ * the given permissions - used where a resource has both an "own scope"
+ * variant (DEPT_PJ) and a distinct "all scope" variant ("Tambah Role Baru
+ * dan 2 Akun" - KETUA_PELAKSANA's read.all/export.all) gating the exact
+ * same route.
+ */
+export async function requireAnyPermission(
+  context: AdminContext,
+  permissions: SchoolPermission[],
+  requestHeaders?: Headers,
+): Promise<AdminContext> {
+  requirePasswordChanged(context);
+  if (!permissions.some((permission) => hasSchoolPermission(context.role, permission))) {
+    await auditDenied(context, requestHeaders, `permission:${permissions.join("|")}`);
+    throw new AuthServiceError("FORBIDDEN", 403, "Akses tidak diizinkan.");
+  }
+  return context;
+}
+
 export async function requireSuperAdmin(
   context: AdminContext,
   requestHeaders?: Headers,
@@ -193,7 +217,8 @@ export async function requireDepartmentResourceScope(
 
 /**
  * Resolve the department a request is allowed to operate on for shared
- * PJ/Super Admin dashboard resources (Phase 5+). SUPER_ADMIN may access any
+ * PJ/Super Admin dashboard resources (Phase 5+). SUPER_ADMIN (and, since
+ * "Tambah Role Baru dan 2 Akun", KETUA_PELAKSANA) may access any
  * department; DEPT_PJ is always pinned to their own session department and
  * any mismatch is treated as an out-of-scope resource (404), matching
  * ADR-025's enumeration-reduction rule used elsewhere in the guard.
@@ -204,7 +229,7 @@ export async function requireDepartmentAccess(
   requestHeaders?: Headers,
 ): Promise<string> {
   requirePasswordChanged(context);
-  if (context.role === "SUPER_ADMIN") {
+  if (hasAllDepartmentAccess(context.role)) {
     if (!requestedDepartmentId) {
       throw new AuthServiceError("VALIDATION_ERROR", 400, "Department wajib dipilih.");
     }

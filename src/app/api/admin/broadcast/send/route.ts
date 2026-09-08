@@ -1,7 +1,7 @@
 import { validateBroadcastSendRequest } from "@/features/broadcast/validation";
 import { BroadcastError, sendBroadcast } from "@/server/broadcast/broadcast";
 import { authErrorResponse, readJsonObject } from "@/server/auth/api-response";
-import { requireAuthenticatedUser, requireSuperAdmin } from "@/server/auth/guard";
+import { requireAuthenticatedUser, requirePermission } from "@/server/auth/guard";
 import { consumeAuthRateLimit } from "@/server/auth/rate-limit";
 import { assertValidCsrf, clientIpHash } from "@/server/auth/security";
 import { noStoreJson } from "@/server/auth/http";
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   try {
     assertValidCsrf(request);
     const context = await requireAuthenticatedUser(request.headers);
-    await requireSuperAdmin(context, request.headers);
+    await requirePermission(context, "sekolah.broadcast.send", request.headers);
     await consumeAuthRateLimit({
       scope: "ADMIN_BROADCAST_SEND",
       identity: context.userId,

@@ -1,5 +1,5 @@
 import { authErrorResponse } from "@/server/auth/api-response";
-import { requireAuthenticatedUser, requirePermission } from "@/server/auth/guard";
+import { requireAnyPermission, requireAuthenticatedUser } from "@/server/auth/guard";
 import { noStoreJson } from "@/server/auth/http";
 import { getCandidateDetail } from "@/server/candidates/detail";
 import { resolveRequestDepartmentId } from "@/server/candidates/request-scope";
@@ -10,7 +10,7 @@ export async function GET(request: Request, routeContext: RouteContext) {
   try {
     const { id } = await routeContext.params;
     const context = await requireAuthenticatedUser(request.headers);
-    await requirePermission(context, "sekolah.candidate.read.own_birdep", request.headers);
+    await requireAnyPermission(context, ["sekolah.candidate.read.own_birdep", "sekolah.candidate.read.all"], request.headers);
     const departmentId = await resolveRequestDepartmentId(context, request);
 
     const detail = await getCandidateDetail(id, departmentId);

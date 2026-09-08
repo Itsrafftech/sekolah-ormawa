@@ -1700,3 +1700,110 @@ Membalik sebagian ADR-047 ("Guidebook, ketentuan, dan pembayaran"): kode unik pe
 ## Batas fase
 
 Seluruh 6 poin perubahan di spek Anda (database, API, form pendaftaran, dashboard PJ/Super Admin, validasi, quality gate) sudah diimplementasikan dan didokumentasikan (ADR-048). Quality gate otomatis penuh lolos (typecheck, lint, 88 unit test, 147 integration test, build). Tidak ada commit yang saya jalankan. Ini bukan phase baru sesuai instruksi Anda. Pekerjaan berhenti setelah laporan ini dan menunggu persetujuan Anda.
+
+# Hasil UAT - Tambah Role Baru dan 2 Akun (KETUA_PELAKSANA)
+
+## Status
+
+PASS (dengan 1 keterbatasan cakupan - lihat "Risiko" di bawah)
+
+## Ringkasan hasil
+
+Role baru `KETUA_PELAKSANA` ditambahkan: read-only lintas-Birdep (lihat semua kandidat, dashboard PJ manapun lewat department switcher, export semua Birdep, kirim broadcast, lihat audit log), TANPA hak administratif (kelola periode, kelola akun PJ, override lock, reset seleksi, soft delete/restore kandidat tetap eksklusif Super Admin). 2 akun production dibuat lewat script baru sesuai permintaan Anda.
+
+**Temuan arsitektur penting**: instruksi Anda meminta "tambah enum value KETUA_PELAKSANA di UserRole" - tapi codebase ini **tidak punya Prisma enum `UserRole`**. `User.role` adalah kolom `String` yang mengacu (foreign key) ke tabel generik `Role`/`Permission`/`RolePermission` - RBAC di sini sudah berbasis data sejak awal (ADR-004/005), bukan enum Postgres. Jadi menambah role secara harfiah adalah menambah BARIS DATA (lewat `prisma/seed.ts`), bukan `ALTER TYPE`.
+
+**Satu-satunya migration yang benar-benar diperlukan** - ditemukan lewat KEGAGALAN integration test saat live-testing, bukan dugaan di awal: ada CHECK constraint `users_role_department_scope_check` (dari migration paling awal) yang membatasi kombinasi (role, departmentId) ke HANYA dua kemungkinan - SUPER_ADMIN+NULL atau DEPT_PJ+NOT NULL. Nilai role lain ditolak database apa pun izin di level TypeScript. Migration baru menambah kemungkinan ketiga: KETUA_PELAKSANA+NULL (invarian sama seperti SUPER_ADMIN - tidak terikat satu Birdep).
+
+**Permission baru**: `sekolah.candidate.read.all`, `sekolah.export.all`, `sekolah.broadcast.send`, `sekolah.logs.read` - digrant ke KETUA_PELAKSANA (dan otomatis ke SUPER_ADMIN, yang selalu mendapat semua permission). Route yang tadinya hanya mengecek permission "own_birdep" (list/detail/file-viewer/export kandidat) sekarang menerima SALAH SATU dari permission "own" atau "all" lewat helper baru `requireAnyPermission`, sehingga DEPT_PJ dan KETUA_PELAKSANA sama-sama lolos tanpa mengubah scoping department yang sudah ada. Route broadcast (send/preview) yang tadinya literal `requireSuperAdmin` diganti pengecekan permission `sekolah.broadcast.send`.
+
+**"Lihat audit log" - tidak ada UI/endpoint untuk digating**: saya grep penuh seluruh codebase dan mengonfirmasi TIDAK ADA satu pun halaman atau API route yang MEMBACA tabel `AuditLog` - tabel itu sejauh ini hanya pernah DITULIS (dari alur seleksi, lock, akun, dll), tidak pernah ditampilkan ke siapa pun, termasuk Super Admin. Membangun viewer audit log dari nol adalah fitur baru yang substansial (halaman admin baru, endpoint baru, query/paginasi baru) - bukan sekadar meng-extend kontrol akses ke sesuatu yang sudah ada, sehingga saya anggap di luar cakupan "jangan mulai fase baru" dan TIDAK saya bangun. Permission `sekolah.logs.read` tetap saya tambahkan dan grant persis sesuai spek (siap dipakai begitu viewer-nya dibangun terpisah), tapi saat ini tidak ada satu pun kode yang mengonsumsinya - saya tandai jelas di sini, bukan disembunyikan.
+
+**Bagian 2 (2 akun)**: dibuat lewat script BARU `scripts/create-additional-accounts.ts` (bukan mengubah `create-pj-accounts.ts` yang sudah pernah dijalankan sesi lalu) - `riadisuprialma@apps.ipb.ac.id` (DEPT_PJ, MEDBRAND) dan `ghilaragusta@apps.ipb.ac.id` (KETUA_PELAKSANA, tanpa department). Live-tested penuh terhadap dev DB (lihat "Verifikasi"), lalu data uji coba dihapus - 2 email di atas adalah email production ASLI dari spek Anda (bukan email sintetis), jadi baris di dev DB hanya untuk memverifikasi script bekerja benar, bukan dibiarkan sebagai fixture permanen.
+
+## Perubahan utama
+
+| File/modul | Tujuan perubahan |
+|---|---|
+| `prisma/migrations/20260908090000_add_ketua_pelaksana_role/` | Migration baru: tambah disjunct KETUA_PELAKSANA+NULL ke `users_role_department_scope_check`; rollback didokumentasikan lengkap |
+| `docs/sekolah-ormawa/DECISIONS.md` | ADR-049 (supersede sebagian ADR-005) - dokumentasi lengkap: alasan tidak ada migration enum, alasan CHECK constraint, alasan tidak membangun audit log viewer |
+| `docs/sekolah-ormawa/RUNBOOK.md` | Migration list bertambah 1 baris (migration ke-16) |
+| `prisma/seed.ts` | Role fixture `KETUA_PELAKSANA` + 4 permission fixture baru; `pjPermissionCodes` diperketat supaya DEPT_PJ tidak ikut kebagian permission baru; loop baru upsert `RolePermission` untuk KETUA_PELAKSANA |
+| `src/lib/auth/permissions.ts` | `SCHOOL_PERMISSIONS`/statements/`superAdminRole` +4 permission baru; role Better Auth baru `ketuaPelaksanaRole`; `authRoles`/`isAppRole`/`rolePermissions` +KETUA_PELAKSANA; helper baru `hasAllDepartmentAccess(role)`; `assertValidDepartmentScope` digeneralisasi (bukan lagi literal SUPER_ADMIN) |
+| `src/server/auth/guard.ts` | Validasi scope sesi digeneralisasi (`role !== "DEPT_PJ"` bukan literal SUPER_ADMIN) untuk larangan `departmentId`; `requireDepartmentAccess` pakai `hasAllDepartmentAccess`; helper baru `requireAnyPermission` |
+| `src/server/candidates/request-scope.ts` | `hasAllDepartmentAccess` menggantikan literal `role === "SUPER_ADMIN"` |
+| `src/app/api/admin/candidates/route.ts`, `candidates/[id]/route.ts`, `candidates/[id]/files/[fileId]/route.ts` | `requirePermission` tunggal diganti `requireAnyPermission(["...own_birdep", "...all"])` |
+| `src/app/api/admin/candidates/export/route.ts` | Sama, untuk `export.own_birdep`/`export.all` |
+| `src/app/api/admin/broadcast/send/route.ts`, `broadcast/preview/route.ts` | `requireSuperAdmin` literal diganti `requirePermission(..., "sekolah.broadcast.send")` |
+| `src/app/admin/dashboard/broadcast/page.tsx` | Redirect gate diganti `hasSchoolPermission(..., BROADCAST_SEND)` |
+| `src/app/admin/dashboard/page.tsx` | Department switcher/departments list pakai `hasAllDepartmentAccess`; menu sidebar dipecah - "Kelola akun PJ"/"Periode & override lock" tetap SUPER_ADMIN-only, "Broadcast" ikut permission baru |
+| `src/components/admin/candidate-dashboard.tsx` | Prop `role` +KETUA_PELAKSANA; switcher/`detailHref` pakai `role !== "DEPT_PJ"` |
+| `src/app/admin/dashboard/kandidat/[id]/page.tsx` | `backHref` pakai `role !== "DEPT_PJ"`; panel override/danger-zone TIDAK disentuh (tetap SUPER_ADMIN-only) |
+| `src/features/admin/account-contracts.ts` | `AccountListItem.role` +KETUA_PELAKSANA |
+| `scripts/create-additional-accounts.ts` | Script baru: buat 2 akun (1 DEPT_PJ, 1 KETUA_PELAKSANA tanpa department) |
+| `tests/unit/permissions.test.ts` | Kasus baru untuk `assertValidDepartmentScope` KETUA_PELAKSANA + matriks permission lengkap (BISA/TIDAK BISA) |
+| `tests/integration/authorization-matrix.test.ts` | Fixture user KETUA_PELAKSANA + 5 test baru (BISA: list/detail lintas-Birdep, broadcast preview; TIDAK BISA: akun, periode, override) |
+
+## Acceptance criteria
+
+| Kriteria | Status | Bukti |
+|---|---|---|
+| KETUA_PELAKSANA bisa lihat semua kandidat semua Birdep (read-only) | PASS | Integration test: list+detail kandidat Birdep lain -> 200 |
+| KETUA_PELAKSANA dapat department switcher seperti Super Admin | PASS | `hasAllDepartmentAccess` dipakai di dashboard/page.tsx dan candidate-dashboard.tsx |
+| KETUA_PELAKSANA bisa export semua Birdep | PASS | `sekolah.export.all` digrant; route export pakai `requireAnyPermission` |
+| KETUA_PELAKSANA bisa kirim broadcast | PASS | Integration test: broadcast preview -> 200; route send/preview pakai permission baru |
+| KETUA_PELAKSANA bisa lihat audit log | SEBAGIAN | Permission `sekolah.logs.read` ada dan digrant, TAPI tidak ada viewer di app ini sama sekali (lihat "Risiko") |
+| KETUA_PELAKSANA TIDAK BISA kelola periode | PASS | Integration test: GET periods -> 403; `requireSuperAdmin` tidak diubah |
+| KETUA_PELAKSANA TIDAK BISA kelola akun PJ | PASS | Integration test: GET accounts -> 403; halaman `/admin/dashboard/akun` tetap redirect non-SUPER_ADMIN |
+| KETUA_PELAKSANA TIDAK BISA override lock/reset seleksi | PASS | Integration test: POST override -> 403 |
+| KETUA_PELAKSANA TIDAK BISA soft delete/restore kandidat | PASS | Route delete/restore tetap `requireSuperAdmin`, tidak diubah |
+| Enum/permission baru di database, seed diperbarui | PASS (dengan catatan arsitektur) | Role/Permission adalah tabel data, bukan enum - lihat "Ringkasan hasil"; seed.ts diperbarui, diverifikasi lewat live seed run |
+| Migration bisa rollback | PASS | `20260908090000_add_ketua_pelaksana_role/migration.sql` - rollback SQL lengkap di komentar |
+| UI sidebar dan department switcher diperbarui | PASS | Menu "Broadcast" ikut permission baru; "Kelola akun PJ"/"Periode" tetap tersembunyi dari KETUA_PELAKSANA |
+| Script 2 akun (DEPT_PJ MEDBRAND + KETUA_PELAKSANA tanpa dept) | PASS | Live-tested 2x (create + idempotent re-run skip 2/2) terhadap dev DB, lihat "Verifikasi" |
+| Typecheck, lint, unit test, integration test, build PASS | PASS | Lihat tabel verifikasi |
+
+## Verifikasi yang dijalankan
+
+| Perintah/skenario | Hasil |
+|---|---|
+| `npx prisma migrate deploy` (dev+test) + `migrate diff --exit-code` (dev+test) | PASS; nol drift |
+| `npx tsc --noEmit` | PASS; 0 error |
+| `npx eslint . --max-warnings 0` | PASS; 0 warning |
+| `npm run test` (unit) | PASS; 13 file, 93/93 (naik dari 88 - 5 test baru: scope KETUA_PELAKSANA + matriks permission) |
+| `npm run test:integration` | PASS; 15 file, 152/152 (naik dari 147 - 5 test baru: 2 BISA (list+detail lintas-Birdep, broadcast preview), 3 TIDAK BISA (akun, periode, override), semuanya untuk KETUA_PELAKSANA) - **gagal pada percobaan pertama** dengan error CHECK constraint `users_role_department_scope_check`, yang justru MENEMUKAN kebutuhan migration di atas sebelum saya asumsikan tidak perlu migration sama sekali |
+| `npm run build` (dengan env dummy MinIO/Resend) | PASS |
+| `npx tsx -r dotenv/config scripts/create-additional-accounts.ts` (1x, terhadap dev DB) | PASS; 2/2 dibuat - DEPT_PJ dengan departmentId MEDBRAND terisi benar, KETUA_PELAKSANA dengan departmentId NULL |
+| Re-run script yang sama (2x) | PASS; 2/2 di-skip dengan pesan "akun sudah ada" - idempotency terkonfirmasi |
+| Query DB langsung (psql): verifikasi `role`/`departmentId`/`mustChangePassword` 2 baris di atas | PASS; sesuai spek persis, lalu SEMUA baris terkait (`users`/`accounts`/`password_reset_tokens`/`audit_logs`/`email_outbox`) dihapus setelah verifikasi |
+
+## Migration dan konfigurasi
+
+- Migration baru: `20260908090000_add_ketua_pelaksana_role` - diterapkan ke dev+test, nol drift dikonfirmasi. **Belum diterapkan ke production.**
+- `prisma/seed.ts` diperbarui (role+permission KETUA_PELAKSANA) - **wajib dijalankan ulang di production** (`npx prisma db seed`, idempotent) setelah migration di atas, SEBELUM menjalankan script akun (script mengasumsikan role `KETUA_PELAKSANA` sudah ada di tabel `roles`, kalau belum akan gagal foreign key).
+- Tidak ada env var baru.
+- Tidak ada commit yang saya jalankan - seluruh perubahan masih di working tree, unstaged.
+
+## Risiko, asumsi, dan technical debt
+
+- **"Lihat audit log" belum punya UI/endpoint sama sekali** (bukan hanya untuk KETUA_PELAKSANA - TIDAK ADA SIAPA PUN, termasuk Super Admin, yang bisa melihat audit log lewat aplikasi ini saat ini). Permission `sekolah.logs.read` sudah siap dipakai, tapi membangun viewer-nya (halaman baru + endpoint baru + query/paginasi) adalah pekerjaan fase terpisah, bukan bagian dari "tambah role" - perlu instruksi eksplisit Anda kalau ingin ini dibangun.
+- **Deviasi arsitektur dari instruksi literal**: "enum value" dan "migration" di spek Anda diterjemahkan menjadi baris data (seed) + satu migration CHECK constraint, bukan `ALTER TYPE` seperti yang mungkin dibayangkan - didokumentasikan penuh di ADR-049 supaya tidak membingungkan sesi/kolaborator berikutnya yang mencari "enum UserRole" dan tidak menemukannya.
+- CHECK constraint yang diperbaiki ditemukan lewat kegagalan test yang sesungguhnya (bukan audit kode manual yang lengkap sejak awal) - pengingat bahwa grep manual atas "CHECK.*role" tidak menangkap constraint yang klausanya terpisah baris; live-testing (bukan hanya membaca kode) tetap jadi lapisan verifikasi yang menentukan di sesi ini.
+- Export "semua Birdep" untuk KETUA_PELAKSANA memakai mekanisme yang SAMA seperti SUPER_ADMIN saat ini - satu department per panggilan lewat switcher, BUKAN satu file gabungan seluruh Birdep sekaligus (fitur itu tidak ada untuk siapa pun di aplikasi ini) - konsisten dengan arsitektur yang sudah ada, bukan fitur baru.
+
+## Cara saya memeriksa hasil
+
+1. `npx prisma migrate diff --exit-code` terhadap dev+test setelah apply - nol drift.
+2. `npx tsc --noEmit && npx eslint . --max-warnings 0 && npm run test && npm run test:integration && npm run build`.
+3. Grep penuh `src/` untuk `AuditLog`/`auditLog\.findMany` untuk memastikan tidak ada viewer yang terlewat sebelum menyimpulkan perlu dibangun terpisah.
+4. Live-run `scripts/create-additional-accounts.ts` 2x (create, lalu idempotent re-run) terhadap dev DB + query psql langsung untuk memverifikasi `role`/`departmentId` tiap baris, lalu bersihkan seluruh baris terkait.
+5. Membaca ulang setiap route yang sebelumnya `requireSuperAdmin` literal untuk memastikan hanya broadcast yang diubah - periode/akun/override/delete/restore/locks SENGAJA tidak disentuh.
+
+## Keputusan yang dibutuhkan
+
+1. **Audit log viewer**: apakah perlu dibangun sekarang (halaman + endpoint baru), atau permission `sekolah.logs.read` cukup disiapkan dulu dan viewer-nya menyusul di instruksi terpisah?
+2. Tidak ada blocker lain. ADR-049 mendokumentasikan seluruh deviasi arsitektur (tidak ada enum, CHECK constraint, audit log viewer) untuk ditinjau bila perlu.
+
+## Batas fase
+
+Seluruh 5 langkah "Urutan pengerjaan" di spek Anda (migration role/permission, permission resolver/guards, UI sidebar/switcher, script 2 akun, quality gate) sudah diimplementasikan dan didokumentasikan (ADR-049), dengan satu keterbatasan yang ditandai jelas (audit log viewer belum ada di app mana pun). Quality gate otomatis penuh lolos (typecheck, lint, 93 unit test, 152 integration test, build). Tidak ada commit yang saya jalankan. Ini bukan phase baru sesuai instruksi Anda. Pekerjaan berhenti setelah laporan ini dan menunggu persetujuan Anda - perintah server Contabo ada di bagian terpisah di bawah, TIDAK dijalankan oleh saya.
