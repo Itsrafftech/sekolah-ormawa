@@ -1,0 +1,23 @@
+-- "Tambahan Field Khusus Ristek": adds an OPTIONAL Google Drive portfolio
+-- link for Biro Riset dan Teknologi (RISTEK), following the exact same
+-- pattern as ADR-043/ADR-045/ADR-050's other department-triggered
+-- portfolio fields (Medbrand's portfolioUrl, Senbud's
+-- senbudPortfolioUrl).
+--
+-- A separate column (not reusing portfolioUrl or senbudPortfolioUrl) -
+-- RISTEK, MEDBRAND/BADMEDBRND, and SENBUD are all EXECUTIVE-track
+-- departments, so a candidate could pick any two of them across their two
+-- choices; each Birdep's portfolio needs its own slot, same reasoning
+-- ADR-050 already established for senbudPortfolioUrl.
+--
+-- No UploadKind change - this field is a plain URL string, not a file
+-- upload, so there is nothing to add to that enum.
+--
+-- Backfill: none needed - the column is nullable and defaults to NULL for
+-- every existing row automatically.
+--
+-- Rollback:
+--   ALTER TABLE "candidate_supplemental_data" DROP COLUMN "ristekPortfolioUrl";
+
+-- AlterTable
+ALTER TABLE "candidate_supplemental_data" ADD COLUMN "ristekPortfolioUrl" TEXT;

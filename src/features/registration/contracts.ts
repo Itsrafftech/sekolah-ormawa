@@ -121,6 +121,9 @@ export type RegistrationPayload = {
     // could pick both Medbrand/Badmedbrnd AND Senbud across their two
     // choices - both EXECUTIVE-track).
     senbudPortfolioUrl?: string;
+    // "Tambahan Field Khusus Ristek": same OPTIONAL Google Drive portfolio
+    // pattern, own column - Ristek is also EXECUTIVE-track.
+    ristekPortfolioUrl?: string;
   };
   consent: {
     truthful: boolean;

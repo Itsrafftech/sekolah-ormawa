@@ -403,6 +403,13 @@ model CandidateSupplementalData {
   /// candidate could in principle pick both Medbrand/Badmedbrnd AND Senbud
   /// across their two choices - each Birdep's portfolio needs its own slot.
   senbudPortfolioUrl String?
+  /// "Tambahan Field Khusus Ristek": Google Drive link for Ristek's
+  /// portfolio - OPTIONAL, same "https://drive.google.com" validation as
+  /// portfolioUrl/senbudPortfolioUrl. Separate column (not reusing either)
+  /// for the same reason senbudPortfolioUrl is separate from portfolioUrl -
+  /// Ristek, Medbrand/Badmedbrnd, and Senbud are all EXECUTIVE-track, so a
+  /// candidate could pick any two of them across their choices.
+  ristekPortfolioUrl String?
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
   candidate          Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)

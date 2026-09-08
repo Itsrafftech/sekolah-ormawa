@@ -116,9 +116,13 @@ export async function getCandidateDetail(
     viewerCode === "SENBUD" ? candidate.supplementalData?.senbudPortfolioUrl ?? null : null;
   const supplementalSenbudInstagramEvidence =
     viewerCode === "SENBUD" && senbudInstagramUpload ? toUploadSummary(senbudInstagramUpload) : null;
+  // "Tambahan Field Khusus Ristek": same plain-string scoping pattern as
+  // senbudPortfolioUrl/portfolioUrl above.
+  const supplementalRistekPortfolioUrl =
+    viewerCode === "RISTEK" ? candidate.supplementalData?.ristekPortfolioUrl ?? null : null;
   const supplemental =
     supplementalKomitMbti || supplementalAdkesmahFocus || supplementalPortfolioUrl || supplementalBudgetPlanUrl ||
-    supplementalSenbudPortfolioUrl || supplementalSenbudInstagramEvidence
+    supplementalSenbudPortfolioUrl || supplementalSenbudInstagramEvidence || supplementalRistekPortfolioUrl
       ? {
           komitMbti: supplementalKomitMbti,
           adkesmahFocus: supplementalAdkesmahFocus,
@@ -126,6 +130,7 @@ export async function getCandidateDetail(
           budgetPlanUrl: supplementalBudgetPlanUrl,
           senbudPortfolioUrl: supplementalSenbudPortfolioUrl,
           senbudInstagramEvidence: supplementalSenbudInstagramEvidence,
+          ristekPortfolioUrl: supplementalRistekPortfolioUrl,
         }
       : null;
 

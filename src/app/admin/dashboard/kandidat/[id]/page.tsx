@@ -205,6 +205,17 @@ export default async function CandidateDetailPage({ params, searchParams }: Page
                 </li>
               </ul>
             ) : null}
+            {/* "Tambahan Field Khusus Ristek": sama pola dengan
+                portfolioUrl/senbudPortfolioUrl di atas. */}
+            {candidate.supplemental.ristekPortfolioUrl ? (
+              <ul className="candidate-detail__files">
+                <li>
+                  <a href={candidate.supplemental.ristekPortfolioUrl} target="_blank" rel="noopener noreferrer nofollow">
+                    <LinkIcon aria-hidden="true" size={15} /> Portofolio Ristek: {candidate.supplemental.ristekPortfolioUrl}
+                  </a>
+                </li>
+              </ul>
+            ) : null}
           </div>
         ) : null}
       </section>

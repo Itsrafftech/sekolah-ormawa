@@ -28,6 +28,8 @@ const komanggar = "10000000-0000-4000-8000-000000000008";
 const kompeng = "10000000-0000-4000-8000-000000000009";
 // "Tambahan Field Khusus Senbud".
 const senbud = "10000000-0000-4000-8000-000000000010";
+// "Tambahan Field Khusus Ristek".
+const ristek = "10000000-0000-4000-8000-000000000011";
 
 function department(overrides: Partial<RegistrationFormConfig["departments"][number]>): RegistrationFormConfig["departments"][number] {
   return {
@@ -69,6 +71,7 @@ const config: RegistrationFormConfig = {
     department({ id: adkesmah, code: "ADKESMAH", name: "Advokasi dan Kesejahteraan Mahasiswa", shortName: "Adkesmah", requiresAdkesmahFocus: true }),
     department({ id: komanggar, code: "KOMANGG", name: "Komisi Anggaran", shortName: "Komanggar", allowsBudgetPlan: true, track: "LEGISLATIVE" }),
     department({ id: senbud, code: "SENBUD", name: "Seni dan Budaya", shortName: "Senbud" }),
+    department({ id: ristek, code: "RISTEK", name: "Riset dan Teknologi", shortName: "Ristek" }),
   ],
 };
 
@@ -400,6 +403,32 @@ describe("registration validation", () => {
 
     it("tidak wajib bukti Instagram jika Senbud bukan salah satu pilihan", () => {
       expect(validateRegistrationPayload(payload(), config).success).toBe(true);
+    });
+  });
+
+  // "Tambahan Field Khusus Ristek".
+  describe("Field khusus Ristek", () => {
+    it("menerima Ristek tanpa link portofolio (opsional)", () => {
+      const input = payload();
+      input.choices[0].departmentId = ristek;
+      expect(validateRegistrationPayload(input, config).success).toBe(true);
+    });
+
+    it("menerima Ristek dengan link Google Drive valid", () => {
+      const input = payload();
+      input.choices[0].departmentId = ristek;
+      input.departmentFields.ristekPortfolioUrl = driveUrl;
+      expect(validateRegistrationPayload(input, config).success).toBe(true);
+    });
+
+    it("menolak link portofolio Ristek non-Google-Drive", () => {
+      const input = payload();
+      input.choices[0].departmentId = ristek;
+      input.departmentFields.ristekPortfolioUrl = "https://example.test/portfolio";
+      expect(validateRegistrationPayload(input, config)).toMatchObject({
+        success: false,
+        errors: { "departmentFields.ristekPortfolioUrl": expect.any(String) },
+      });
     });
   });
 });

@@ -114,6 +114,13 @@ function departmentAllowsBudgetPlan(department: PublicDepartmentOption | undefin
   return department?.code === "KOMANGG";
 }
 
+// "Tambahan Field Khusus Ristek": optional portfolio link, same
+// "allows"-not-"requires" naming as departmentAllowsBudgetPlan above
+// (Komanggar's RAB) since neither is ever mandatory.
+function departmentAllowsRistekPortfolio(department: PublicDepartmentOption | undefined): boolean {
+  return department?.code === "RISTEK";
+}
+
 // Penugasan khusus Senbud ("Calon Rockidz"): informasional, bukan field
 // submit - pendaftar SENBUD harus menyiapkan portofolio (opsional) dan
 // video kreatif (wajib) di luar form. Ditampilkan di Step 2 (tag opsi),
@@ -208,6 +215,11 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
   );
   const requiresSenbudPenugasan = useMemo(
     () => selectedDepartments.some((department) => departmentHasSenbudPenugasan(department)),
+    [selectedDepartments],
+  );
+  // "Tambahan Field Khusus Ristek".
+  const allowsRistekPortfolio = useMemo(
+    () => selectedDepartments.some((department) => departmentAllowsRistekPortfolio(department)),
     [selectedDepartments],
   );
 
@@ -401,6 +413,14 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
       }
       if (requiresSenbudPenugasan && !payload.uploads.senbudInstagramEvidence) {
         errors["uploads.senbudInstagramEvidence"] = "Bukti upload story/post Instagram wajib diunggah karena Seni dan Budaya dipilih.";
+      }
+      // "Tambahan Field Khusus Ristek": tetap opsional, hanya format
+      // dicek saat diisi - tidak ada requiredness check sama sekali.
+      if (
+        payload.departmentFields.ristekPortfolioUrl &&
+        !isValidGoogleDriveUrl(payload.departmentFields.ristekPortfolioUrl, config.portfolioUrlMaxLength)
+      ) {
+        errors["departmentFields.ristekPortfolioUrl"] = "Link harus berupa URL Google Drive yang valid (https://drive.google.com/...).";
       }
     }
     if (targetStep === 5) {
@@ -606,6 +626,7 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
             requiresPortfolio={requiresPortfolio}
             allowsBudgetPlan={allowsBudgetPlan}
             requiresSenbudPenugasan={requiresSenbudPenugasan}
+            allowsRistekPortfolio={allowsRistekPortfolio}
             mutate={mutate}
           />
         ) : null}
@@ -626,6 +647,7 @@ export function RegistrationForm({ config, departmentsByTrack }: { config: Regis
             requiresAdkesmahFocus={requiresAdkesmahFocus}
             allowsBudgetPlan={allowsBudgetPlan}
             requiresSenbudPenugasan={requiresSenbudPenugasan}
+            allowsRistekPortfolio={allowsRistekPortfolio}
             mutate={mutate}
           />
         ) : null}
@@ -1017,13 +1039,14 @@ function FollowEvidenceStep({ config, errors, payload, mutate }: StepProps) {
   );
 }
 
-function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allowsBudgetPlan, requiresSenbudPenugasan, mutate }: StepProps & {
+function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allowsBudgetPlan, requiresSenbudPenugasan, allowsRistekPortfolio, mutate }: StepProps & {
   requiresPortfolio: boolean;
   allowsBudgetPlan: boolean;
   requiresSenbudPenugasan: boolean;
+  allowsRistekPortfolio: boolean;
 }) {
   const updateEssay = (key: keyof RegistrationPayload["essays"], value: string) => mutate((current) => ({ ...current, essays: { ...current.essays, [key]: value } }));
-  const updateDriveUrl = (key: "portfolioUrl" | "budgetPlanUrl" | "senbudPortfolioUrl", value: string) =>
+  const updateDriveUrl = (key: "portfolioUrl" | "budgetPlanUrl" | "senbudPortfolioUrl" | "ristekPortfolioUrl", value: string) =>
     mutate((current) => ({ ...current, departmentFields: { ...current.departmentFields, [key]: value } }));
   const setSenbudInstagramEvidence = (upload: UploadReference | null) =>
     mutate((current) => ({ ...current, uploads: { ...current.uploads, senbudInstagramEvidence: upload } }));
@@ -1082,6 +1105,47 @@ function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allows
               id={`${fieldId("departmentFields.budgetPlanUrl")}-control`}
               value={payload.departmentFields.budgetPlanUrl ?? ""}
               onChange={(event) => updateDriveUrl("budgetPlanUrl", event.target.value)}
+              type="url"
+              placeholder="https://drive.google.com/..."
+              maxLength={config.portfolioUrlMaxLength}
+            />
+          </Field>
+        </section>
+      ) : null}
+
+      {/* "Tambahan Field Khusus Ristek": dynamic, only rendered when
+          Ristek is one of the two choices - selalu opsional, sama pola
+          dengan RAB Komanggar di atas (tidak pernah wajib, hanya format
+          yang dicek saat diisi). */}
+      {allowsRistekPortfolio ? (
+        <section className="portfolio-section" id={fieldId("departmentFields.ristekPortfolioUrl")}>
+          <header>
+            <div><p className="eyebrow">Riset dan Teknologi</p><h3>Portofolio Ristek</h3><p>Opsional, nilai tambah untuk pilihan Riset dan Teknologi.</p></div>
+          </header>
+          <div className="follow-evidence-instructions">
+            <p>
+              Pengumpulan portofolio bersifat opsional, namun dapat menjadi nilai tambah dalam proses penilaian.
+              Panduan lengkap portofolio dapat dilihat di{" "}
+              <a href="https://ipb.link/portofolio-so-ristek" target="_blank" rel="noopener noreferrer">
+                https://ipb.link/portofolio-so-ristek
+              </a>
+              .
+            </p>
+            <p>
+              Pastikan akses Google Drive sudah dibuka untuk semua orang (Anyone with the link can view) sebelum
+              memasukkan link di sini.
+            </p>
+          </div>
+          <Field
+            id="departmentFields.ristekPortfolioUrl"
+            label="Link Portofolio (Opsional)"
+            error={errors["departmentFields.ristekPortfolioUrl"]}
+            hint="Pastikan link sudah diset 'Anyone with the link can view' sebelum dikirimkan."
+          >
+            <input
+              id={`${fieldId("departmentFields.ristekPortfolioUrl")}-control`}
+              value={payload.departmentFields.ristekPortfolioUrl ?? ""}
+              onChange={(event) => updateDriveUrl("ristekPortfolioUrl", event.target.value)}
               type="url"
               placeholder="https://drive.google.com/..."
               maxLength={config.portfolioUrlMaxLength}
@@ -1245,13 +1309,14 @@ function PaymentStep({ config, errors, payload, mutate }: StepProps) {
   );
 }
 
-function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortfolio, requiresMbti, requiresAdkesmahFocus, allowsBudgetPlan, requiresSenbudPenugasan, mutate }: StepProps & {
+function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortfolio, requiresMbti, requiresAdkesmahFocus, allowsBudgetPlan, requiresSenbudPenugasan, allowsRistekPortfolio, mutate }: StepProps & {
   departmentsByTrack: DepartmentsByTrack;
   requiresPortfolio: boolean;
   requiresMbti: boolean;
   requiresAdkesmahFocus: boolean;
   allowsBudgetPlan: boolean;
   requiresSenbudPenugasan: boolean;
+  allowsRistekPortfolio: boolean;
 }) {
   // departmentsByTrack first (matches what Step 2 actually showed/what the
   // user picked - correct regardless of this period's acceptsApplications
@@ -1266,7 +1331,7 @@ function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortf
         <ReviewSection title="Jalur Pendaftaran"><dl><ReviewItem label="Jalur" value={payload.track ? TRACK_LABEL[payload.track] : "-"} /><ReviewItem label="Guidebook & ketentuan" value={payload.guidebookAcknowledged ? "Sudah dibaca" : "-"} /></dl></ReviewSection>
         <ReviewSection title="Identitas"><dl><ReviewItem label="Nama" value={payload.identity.name} /><ReviewItem label="NIM" value={payload.identity.nim} /><ReviewItem label="Angkatan / tahun masuk" value={`${payload.identity.cohortCode} / ${payload.identity.entryYear}`} /><ReviewItem label="Prodi" value={payload.identity.studyProgram} /><ReviewItem label="Kelas" value={payload.identity.className} /><ReviewItem label="WhatsApp" value={payload.identity.phone} /><ReviewItem label="Email" value={payload.identity.email} /><ReviewItem label="Domisili" value={payload.identity.domicile} /></dl></ReviewSection>
         <ReviewSection title="Pilihan Birdep">{payload.choices.map((choice, index) => <article key={index}><strong>Pilihan {index + 1} · {department(choice.departmentId)}</strong><p>{choice.motivation}</p></article>)}</ReviewSection>
-        {requiresMbti || requiresAdkesmahFocus || requiresPortfolio || allowsBudgetPlan || requiresSenbudPenugasan ? (
+        {requiresMbti || requiresAdkesmahFocus || requiresPortfolio || allowsBudgetPlan || requiresSenbudPenugasan || allowsRistekPortfolio ? (
           <ReviewSection title="Data Khusus Birdep">
             <dl>
               {requiresMbti ? <ReviewItem label="Tipe MBTI" value={payload.departmentFields.komitMbti ?? ""} /> : null}
@@ -1280,6 +1345,8 @@ function ReviewStep({ config, departmentsByTrack, errors, payload, requiresPortf
               {allowsBudgetPlan ? <ReviewItem label="Link RAB" value={payload.departmentFields.budgetPlanUrl ?? ""} /> : null}
               {/* "Tambahan Field Khusus Senbud". */}
               {requiresSenbudPenugasan ? <ReviewItem label="Link Portofolio Senbud" value={payload.departmentFields.senbudPortfolioUrl ?? ""} /> : null}
+              {/* "Tambahan Field Khusus Ristek". */}
+              {allowsRistekPortfolio ? <ReviewItem label="Link Portofolio Ristek" value={payload.departmentFields.ristekPortfolioUrl ?? ""} /> : null}
             </dl>
           </ReviewSection>
         ) : null}

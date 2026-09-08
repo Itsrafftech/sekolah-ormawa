@@ -121,6 +121,7 @@ const payloadSchema = z.object({
     portfolioUrl: z.string().trim().optional(),
     budgetPlanUrl: z.string().trim().optional(),
     senbudPortfolioUrl: z.string().trim().optional(),
+    ristekPortfolioUrl: z.string().trim().optional(),
   }),
   consent: z.object({
     // Custom messages: without these, a Zod structural failure here (e.g.
@@ -268,6 +269,16 @@ export function validateRegistrationPayload(
   }
   if (selectedCodes.includes("SENBUD") && !data.uploads.senbudInstagramEvidence) {
     errors["uploads.senbudInstagramEvidence"] = "Bukti upload story/post Instagram wajib diunggah karena Seni dan Budaya dipilih.";
+  }
+
+  // "Tambahan Field Khusus Ristek": portfolio link tetap opsional - hanya
+  // format dicek saat diisi, sama pola dengan senbudPortfolioUrl/
+  // budgetPlanUrl di atas. Tidak ada requiredness check sama sekali.
+  if (
+    data.departmentFields.ristekPortfolioUrl &&
+    !isValidGoogleDriveUrl(data.departmentFields.ristekPortfolioUrl, config.portfolioUrlMaxLength)
+  ) {
+    errors["departmentFields.ristekPortfolioUrl"] = "Link harus berupa URL Google Drive yang valid (https://drive.google.com/...).";
   }
 
   return Object.keys(errors).length > 0

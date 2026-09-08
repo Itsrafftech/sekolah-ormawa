@@ -132,6 +132,9 @@ export type CandidateSupplementalSummary = {
   budgetPlanUrl: string | null;
   senbudPortfolioUrl: string | null;
   senbudInstagramEvidence: CandidateUploadSummary | null;
+  // "Tambahan Field Khusus Ristek": same plain-string pattern, scoped to
+  // RISTEK.
+  ristekPortfolioUrl: string | null;
 };
 
 export type CandidateSelectionDetail = {

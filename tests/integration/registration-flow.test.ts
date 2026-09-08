@@ -33,6 +33,8 @@ const komanggar = "72000000-0000-4000-8000-000000000008";
 const badmedbrndReal = "72000000-0000-4000-8000-000000000009";
 // "Tambahan Field Khusus Senbud".
 const senbud = "72000000-0000-4000-8000-000000000010";
+// "Tambahan Field Khusus Ristek".
+const ristek = "72000000-0000-4000-8000-000000000011";
 const studyProgramId = "73000000-0000-4000-8000-000000000001";
 const motivation = Array.from({ length: 100 }, (_, index) => `alasan${index}`).join(" ");
 const pdf = new TextEncoder().encode("%PDF-1.4 synthetic integration fixture");
@@ -95,8 +97,9 @@ beforeAll(async () => {
       (id, code, name, "shortName", "unitType", "sortOrder", "isActive", "configStatus", "createdAt", "updatedAt")
      VALUES ($1, 'KOMIT', 'Biro Kolaborasi dan Kemitraan Test', 'Komit', 'BIRO', 7, true, 'ACTIVE', now(), now()),
             ($2, 'ADKESMAH', 'Advokasi dan Kesejahteraan Mahasiswa Test', 'Adkesmah', 'DEPARTEMEN', 8, true, 'ACTIVE', now(), now()),
-            ($3, 'SENBUD', 'Seni dan Budaya Test', 'Senbud', 'DEPARTEMEN', 10, true, 'ACTIVE', now(), now())`,
-    [komit, adkesmah, senbud],
+            ($3, 'SENBUD', 'Seni dan Budaya Test', 'Senbud', 'DEPARTEMEN', 10, true, 'ACTIVE', now(), now()),
+            ($4, 'RISTEK', 'Biro Riset dan Teknologi Test', 'Ristek', 'BIRO', 11, true, 'ACTIVE', now(), now())`,
+    [komit, adkesmah, senbud, ristek],
   );
   await pool.query(
     `INSERT INTO recruitment_periods
@@ -106,7 +109,7 @@ beforeAll(async () => {
   );
   for (const departmentId of [
     departmentA, departmentB, medbrand, legislativeA, legislativeB,
-    komit, adkesmah, komanggar, badmedbrndReal, senbud,
+    komit, adkesmah, komanggar, badmedbrndReal, senbud, ristek,
   ]) {
     await pool.query(
       `INSERT INTO period_departments
@@ -175,6 +178,7 @@ async function validPayload(input: {
     portfolioUrl?: string;
     budgetPlanUrl?: string;
     senbudPortfolioUrl?: string;
+    ristekPortfolioUrl?: string;
   };
   // "Tambahan Field Khusus Senbud": opt-in so non-Senbud tests aren't
   // forced to build an extra upload they never asserted about.
@@ -343,6 +347,40 @@ describe.sequential("Phase 3 registration transaction", () => {
       [result.registrationNumber],
     );
     expect(row.rows[0].senbudPortfolioUrl).toBe(driveUrl);
+  });
+
+  // "Tambahan Field Khusus Ristek".
+  it("menerima Ristek tanpa link portofolio (opsional), tidak menulis baris supplemental", async () => {
+    const suffix = `ristek-ok-${randomUUID().slice(0, 8)}`;
+    const ownerToken = `owner-${suffix}`;
+    const payload = await validPayload({ ownerToken, suffix, primary: ristek });
+    const result = await submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` });
+    const supplementalRow = await pool.query(
+      `SELECT s."ristekPortfolioUrl" FROM candidate_supplemental_data s JOIN candidates c ON c.id = s."candidateId" WHERE c."registrationNumber" = $1`,
+      [result.registrationNumber],
+    );
+    expect(supplementalRow.rows[0]).toBeUndefined();
+  });
+
+  it("menyimpan link portofolio Ristek di candidate_supplemental_data ketika diisi", async () => {
+    const suffix = `ristek-portfolio-${randomUUID().slice(0, 8)}`;
+    const ownerToken = `owner-${suffix}`;
+    const payload = await validPayload({ ownerToken, suffix, primary: ristek, departmentFields: { ristekPortfolioUrl: driveUrl } });
+    const result = await submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` });
+    const row = await pool.query(
+      `SELECT s."ristekPortfolioUrl" FROM candidate_supplemental_data s JOIN candidates c ON c.id = s."candidateId" WHERE c."registrationNumber" = $1`,
+      [result.registrationNumber],
+    );
+    expect(row.rows[0].ristekPortfolioUrl).toBe(driveUrl);
+  });
+
+  it("menolak link portofolio Ristek dengan link bukan Google Drive (authoritative)", async () => {
+    const suffix = `ristek-nondrive-${randomUUID().slice(0, 8)}`;
+    const ownerToken = `owner-${suffix}`;
+    const payload = await validPayload({ ownerToken, suffix, primary: ristek, departmentFields: { ristekPortfolioUrl: "https://example.test/portofolio" } });
+    await expect(
+      submitRegistration({ payload, ownerToken, idempotencyKey: `idem_${randomUUID().replaceAll("-", "")}` }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED", fieldErrors: { "departmentFields.ristekPortfolioUrl": expect.any(String) } });
   });
 
   it("menolak upload tervalidasi milik draft lain", async () => {

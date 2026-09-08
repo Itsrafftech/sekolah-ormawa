@@ -1909,3 +1909,92 @@ Tidak ada blocker. ADR-050 mendokumentasikan seluruh deviasi/keputusan arsitektu
 ## Batas fase
 
 Seluruh 5 langkah "Urutan pengerjaan" di spek Anda (migration, validasi server, form Step 4, dashboard PJ Senbud, quality gate) sudah diimplementasikan dan didokumentasikan (ADR-050). Quality gate otomatis penuh lolos (typecheck, lint, 98 unit test, 155 integration test, build). Tidak ada commit yang saya jalankan. Ini bukan phase baru sesuai instruksi Anda. Pekerjaan berhenti setelah laporan ini dan menunggu persetujuan Anda - perintah deploy server Contabo ada di bagian terpisah di bawah, TIDAK dijalankan oleh saya.
+
+# Hasil UAT - Tambahan Field Khusus Ristek
+
+## Status
+
+PASS
+
+## Ringkasan hasil
+
+Satu field baru untuk Biro Riset dan Teknologi (RISTEK): link portofolio Google Drive, opsional, muncul dinamis di Step 4 (Esai & Portofolio) saat RISTEK dipilih sebagai Pilihan 1 atau 2 - mengikuti persis pola `senbudPortfolioUrl` (ADR-050) yang baru saja diimplementasikan.
+
+**Field**: input URL, label "Link Portofolio (Opsional)", placeholder `https://drive.google.com/...`, tersimpan di `CandidateSupplementalData.ristekPortfolioUrl` - kolom TERPISAH dari `portfolioUrl` (Medbrand)/`senbudPortfolioUrl` (Senbud) karena ketiga Birdep sama-sama EXECUTIVE dan bisa dipilih bersamaan sebagai Pilihan 1 dan 2.
+
+**Validasi**: SELALU opsional - tidak ada requiredness check sama sekali (beda dari bukti Instagram Senbud yang wajib). Hanya format URL yang dicek (harus `https://drive.google.com`) saat field diisi, di client (fast-fail) maupun server (`validateRegistrationPayload`, authoritative).
+
+**Instruksi form**: teks persis yang Anda berikan, dengan link panduan `https://ipb.link/portofolio-so-ristek` dirender sebagai tautan yang bisa diklik (`target="_blank"`) - keputusan UX kecil di luar instruksi literal, teksnya sendiri tidak diubah.
+
+**Dashboard PJ Ristek**: link portofolio tampil di kartu "Data Khusus Birdep" yang sudah ada (bukan kartu baru), sebagai link yang bisa diklik, scoped hanya untuk viewer dengan department Ristek (dan Super Admin lewat department switcher) - persis pola `portfolioUrl`/`senbudPortfolioUrl`.
+
+## Perubahan utama
+
+| File/modul | Tujuan perubahan |
+|---|---|
+| `prisma/migrations/20260908110000_ristek_portfolio_url/` | Migration baru: kolom `ristekPortfolioUrl` nullable; rollback didokumentasikan |
+| `docs/sekolah-ormawa/DECISIONS.md` | ADR-051 - dokumentasi lengkap: alasan kolom terpisah, keputusan naming helper "allows" bukan "requires", cara render link panduan |
+| `docs/sekolah-ormawa/RUNBOOK.md` | Migration list bertambah 1 baris (migration ke-18) |
+| `prisma/schema.prisma` | `CandidateSupplementalData.ristekPortfolioUrl` (nullable) |
+| `src/features/registration/contracts.ts` | `departmentFields.ristekPortfolioUrl` baru |
+| `src/features/registration/validation.ts` | Schema Zod +`ristekPortfolioUrl`; format URL opsional (hanya dicek jika diisi, tanpa requiredness) |
+| `src/server/registration/submit.ts` | `ristekPortfolioUrl` masuk `candidateSupplementalData.create()` + audit log |
+| `src/components/registration/registration-form.tsx` | Helper baru `departmentAllowsRistekPortfolio()`; section baru "Portofolio Ristek" di Step 4 dengan instruksi + link panduan; ReviewStep (Step 7) menampilkan link |
+| `src/features/candidates/contracts.ts` | `CandidateSupplementalSummary` +`ristekPortfolioUrl` |
+| `src/server/candidates/detail.ts` | `ristekPortfolioUrl` di-scope ke viewer RISTEK saja di `supplemental` |
+| `src/app/admin/dashboard/kandidat/[id]/page.tsx` | Kartu "Data Khusus Birdep" menampilkan link portofolio Ristek |
+| `tests/unit/registration-validation.test.ts` | 3 test baru: terima tanpa link, terima dengan link valid, tolak link non-Drive |
+| `tests/integration/registration-flow.test.ts` | Fixture department Ristek + 3 test baru (tanpa portofolio tidak menulis baris supplemental, simpan ke DB saat diisi, tolak link non-Drive authoritative) |
+
+## Acceptance criteria
+
+| Kriteria | Status | Bukti |
+|---|---|---|
+| Field muncul di Step 4 saat RISTEK dipilih (P1 atau P2) | PASS | `allowsRistekPortfolio` (trigger: RISTEK di salah satu pilihan) |
+| Label/placeholder/instruksi persis spek | PASS | Dibaca ulang terhadap teks yang Anda berikan, kata per kata |
+| Validasi: harus URL Google Drive jika diisi | PASS | `isValidGoogleDriveUrl()` (fungsi sama dipakai Medbrand/Komanggar/Senbud); unit + integration test menolak host non-Drive |
+| Tampil di dashboard PJ Ristek sebagai link yang bisa diklik | PASS | Kartu "Data Khusus Birdep", scoped ke `viewerCode === "RISTEK"` |
+| Kolom `ristekPortfolioUrl` di `CandidateSupplementalData` | PASS | Migration diterapkan ke dev+test, nol drift |
+| Migration bisa rollback | PASS | Rollback SQL didokumentasikan di komentar migration |
+| Tidak perlu `UploadKind` baru | PASS | Tidak disentuh - field murni teks |
+| Field hanya muncul jika RISTEK Pilihan 1 atau 2 | PASS | Sama trigger seperti field khusus Birdep lain |
+| Validasi hanya aktif jika diisi (opsional, tidak wajib) | PASS | Tidak ada requiredness check di client maupun server |
+| Draft localStorage simpan nilai URL | PASS | `departmentFields` (termasuk `ristekPortfolioUrl`) sudah ada di `DraftPayload` secara wholesale (Pick pada seluruh object) |
+| Super Admin bisa lihat semua | PASS | Sama seperti field Data Khusus Birdep lain - bisa switch department ke Ristek |
+| Typecheck, lint, unit test, integration test, build PASS | PASS | Lihat tabel verifikasi |
+
+## Verifikasi yang dijalankan
+
+| Perintah/skenario | Hasil |
+|---|---|
+| `npx prisma migrate deploy` (dev+test) + `migrate diff --exit-code` (dev+test) | PASS; nol drift |
+| `npx prisma generate` | PASS; Prisma Client 7.9.1 diregenerasi dengan `ristekPortfolioUrl` |
+| `npx tsc --noEmit` | PASS; 0 error |
+| `npx eslint . --max-warnings 0` | PASS; 0 warning |
+| `npm run test` (unit) | PASS; 13 file, **101/101** (naik dari 98 - 3 test baru) |
+| `npm run test:integration` | PASS; 15 file, **158/158** (naik dari 155 - 3 test baru) |
+| `npm run build` (dengan env dummy MinIO/Resend) | PASS |
+
+## Migration dan konfigurasi
+
+- Migration baru: `20260908110000_ristek_portfolio_url` - diterapkan ke dev+test, nol drift dikonfirmasi. **Belum diterapkan ke production.**
+- Tidak ada env var baru.
+
+## Risiko, asumsi, dan technical debt
+
+- Export CSV kandidat TIDAK menyertakan `ristekPortfolioUrl` - konsisten dengan SEMUA field Data Khusus Birdep lain (komitMbti/adkesmahFocus/portfolioUrl/budgetPlanUrl/senbudPortfolioUrl juga tidak ada di export), bukan pengecualian baru.
+- Tidak ada tag "- portofolio opsional" di dropdown Birdep Step 2 (berbeda dari Medbrand yang punya tag "- portofolio wajib") - konsisten dengan Komanggar (RAB opsional) yang juga tidak punya tag, karena tag itu sejauh ini hanya dipakai untuk field yang WAJIB.
+
+## Cara saya memeriksa hasil
+
+1. `npx prisma migrate diff --exit-code` terhadap dev+test setelah apply - nol drift.
+2. `npx tsc --noEmit && npx eslint . --max-warnings 0 && npm run test && npm run test:integration && npm run build`.
+3. Membaca ulang `submit.ts`/`validation.ts`/`detail.ts`/`registration-form.tsx`/`page.tsx` untuk memastikan pola persis mengikuti `senbudPortfolioUrl` (ADR-050) tanpa penyimpangan.
+
+## Keputusan yang dibutuhkan
+
+Tidak ada blocker. ADR-051 mendokumentasikan keputusan naming/UX yang dipilih sendiri untuk ditinjau bila perlu.
+
+## Batas fase
+
+Seluruh 5 langkah "Urutan pengerjaan" di spek Anda (migration, validasi server, form Step 4, dashboard PJ Ristek, quality gate) sudah diimplementasikan dan didokumentasikan (ADR-051). Quality gate otomatis penuh lolos (typecheck, lint, 101 unit test, 158 integration test, build). Ini bukan phase baru sesuai instruksi Anda. Menunggu persetujuan Anda sebelum commit/push (instruksi Anda meminta commit+push langsung - dilakukan setelah laporan ini, lihat bagian di bawah).

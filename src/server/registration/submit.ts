@@ -425,7 +425,7 @@ export async function submitRegistration(input: {
       if (
         payload.departmentFields.komitMbti || payload.departmentFields.adkesmahFocus ||
         payload.departmentFields.portfolioUrl || payload.departmentFields.budgetPlanUrl ||
-        payload.departmentFields.senbudPortfolioUrl
+        payload.departmentFields.senbudPortfolioUrl || payload.departmentFields.ristekPortfolioUrl
       ) {
         await transaction.candidateSupplementalData.create({
           data: {
@@ -435,6 +435,7 @@ export async function submitRegistration(input: {
             portfolioUrl: payload.departmentFields.portfolioUrl ?? null,
             budgetPlanUrl: payload.departmentFields.budgetPlanUrl ?? null,
             senbudPortfolioUrl: payload.departmentFields.senbudPortfolioUrl ?? null,
+            ristekPortfolioUrl: payload.departmentFields.ristekPortfolioUrl ?? null,
           },
         });
       }
@@ -484,6 +485,7 @@ export async function submitRegistration(input: {
             hasPortfolioUrl: Boolean(payload.departmentFields.portfolioUrl),
             hasBudgetPlanUrl: Boolean(payload.departmentFields.budgetPlanUrl),
             hasSenbudPortfolioUrl: Boolean(payload.departmentFields.senbudPortfolioUrl),
+            hasRistekPortfolioUrl: Boolean(payload.departmentFields.ristekPortfolioUrl),
           },
         },
       });
