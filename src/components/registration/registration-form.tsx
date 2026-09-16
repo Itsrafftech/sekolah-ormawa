@@ -1224,6 +1224,13 @@ function EssayPortfolioStep({ config, errors, payload, requiresPortfolio, allows
           <div className="penugasan-notes">
             <strong>Catatan</strong>
             <ol>
+              <li>
+                Wajib mencantumkan hashtag dan mention berikut di caption video Reels kamu:
+                <br />
+                #senbudormawaeksepku #rocend #siapjadirockidz #departementerkalcerseipb
+                <br />
+                @senbud_ormawaeksepku @senbudgedebug @dndyfrrl @nazzwa.m @sevcheenko
+              </li>
               <li>Buat sekreatif mungkin, dengan konsep bebas.</li>
               <li>Portofolio disimpan di Google Drive dengan format nama <code>Nama Lengkap_NIM_Calon Rockidz</code>.</li>
               <li>Screenshot bukti unggah Video Kreatif di Reels juga masuk Google Drive dengan format nama <code>Nama Lengkap_NIM_usn ig_Calon Rockidz</code>.</li>
