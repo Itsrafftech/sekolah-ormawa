@@ -1004,6 +1004,7 @@ function FollowEvidenceStep({ config, errors, payload, mutate }: StepProps) {
           <li>Follow @ormawalegislatifpku</li>
           <li>Share jarkoman Sekolah Ormawa ke 3 grup WhatsApp</li>
           <li>Share poster Sekolah Ormawa ke story Instagram pribadi kamu</li>
+          <li>Pasang dan upload Twibbon Sekolah Ormawa</li>
         </ol>
         <p>Kumpulkan semua screenshot bukti menjadi 1 file PDF dengan urutan:</p>
         <ol>
@@ -1012,6 +1013,7 @@ function FollowEvidenceStep({ config, errors, payload, mutate }: StepProps) {
           <li>Screenshot follow @ormawalegislatifpku</li>
           <li>Screenshot share jarkoman ke 3 grup WhatsApp</li>
           <li>Screenshot story Instagram poster</li>
+          <li>Screenshot bukti upload Twibbon Sekolah Ormawa</li>
         </ol>
         <p>
           Format nama file PDF wajib:
